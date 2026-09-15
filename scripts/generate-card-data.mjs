@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import { FileBlob, SpreadsheetFile } from '/Users/lisa/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/@oai/artifact-tool/dist/artifact_tool.mjs';
 
 const workbookPath = '/Users/lisa/Desktop/project/bio-cell/outputs/01a0a269-71e3-7330-8d17-c3040afbcf09/bio-cell-card-deck.xlsx';
-const outputPath = '/Users/lisa/Desktop/project/bio-cell/dist/card-data.js';
+const outputPath = '/Users/lisa/Desktop/project/bio-cell/public/card-data.js';
 
 const numberOrNull = value => typeof value === 'number' && Number.isFinite(value) ? value : null;
 const textOrNull = value => value === null || value === undefined || value === '' ? null : String(value);
