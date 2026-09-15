@@ -596,7 +596,8 @@
       }
 
       function executeRoomCommand(command, payload, seat) {
-        if (network.role !== 'host' || !state || state.gameOver || seat !== currentPlayerIndex) return;
+        const playerIndex = network.seatToPlayerIndex.get(seat) ?? seat;
+        if (network.role !== 'host' || !state || state.gameOver || playerIndex !== currentPlayerIndex) return;
         network.applyingRemote = true;
         try {
           if (command === 'action') chooseAction(payload.action);
