@@ -573,7 +573,7 @@
           },
           disconnected: payload => { roomError = payload?.message || '房主已离开房间。'; if (network.role === 'client') renderRoomDialog('join'); },
           status: payload => { roomError = payload?.message || ''; if (roomView === 'lobby' || roomView === 'waiting') renderRoomDialog(roomView); },
-          error: payload => { roomError = payload?.message || '房间连接失败，请重试。'; renderRoomDialog(network.role === 'host' ? 'lobby' : network.role === 'client' ? 'join' : 'create'); }
+          error: payload => { roomError = payload?.message || '房间连接失败，请重试。'; const errorView = network.role === 'host' && network.roomCode ? 'lobby' : network.role === 'client' ? 'join' : 'create'; renderRoomDialog(errorView); }
         };
       }
 
