@@ -1,0 +1,1180 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b6e4f">
+  <meta name="description" content="2–4 人同屏游玩的植物细胞引擎构筑桌游模拟器。">
+  <title>Cellworks · 植物细胞桌游</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230b6e4f'/%3E%3Cellipse cx='32' cy='32' rx='21' ry='16' fill='%23d9f7e9' stroke='%23ffffff' stroke-width='3'/%3E%3Ccircle cx='27' cy='31' r='7' fill='%237763c5'/%3E%3Cpath d='M38 22c7 3 9 9 5 18-8-2-11-10-5-18Z' fill='%23f4c84b'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --ink: #172522;
+      --muted: #62736f;
+      --paper: #f6fbf9;
+      --panel: #ffffff;
+      --line: #cddbd6;
+      --green: #0b6e4f;
+      --green-2: #129867;
+      --green-soft: #dff6eb;
+      --aqua: #dff4f4;
+      --blue: #377da1;
+      --yellow: #f4c84b;
+      --yellow-soft: #fff4c2;
+      --coral: #ed7059;
+      --coral-soft: #ffe5dd;
+      --violet: #7763c5;
+      --violet-soft: #eee9ff;
+      --shadow: 0 14px 38px rgba(22, 63, 51, .12);
+      --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    html { background: var(--paper); color: var(--ink); font-family: "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif; }
+    body { margin: 0; min-width: 320px; min-height: 100vh; background: radial-gradient(circle at 84% 0, rgba(55,125,161,.1), transparent 28rem), linear-gradient(180deg, #effaf6 0, var(--paper) 20rem); }
+    button, input, select { font: inherit; }
+    button { touch-action: manipulation; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(55,125,161,.4); outline-offset: 2px; }
+    [hidden] { display: none !important; }
+    .app { width: min(1500px, 100%); margin: 0 auto; padding: 20px clamp(14px, 2.4vw, 34px) 36px; }
+    .topbar { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 22px; margin-bottom: 16px; }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand-mark { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 13px; background: var(--green); color: white; box-shadow: 0 8px 18px rgba(11,110,79,.2); font-size: 22px; }
+    .brand-name { font-family: "Arial Rounded MT Bold", "Avenir Next", sans-serif; font-size: 1.24rem; line-height: 1; letter-spacing: -.02em; }
+    .brand-sub { display: block; margin-top: 3px; color: var(--muted); font-size: .78rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .round-banner { justify-self: center; display: flex; align-items: center; gap: 12px; color: var(--muted); font-weight: 700; }
+    .round-banner strong { color: var(--ink); font-size: 1.05rem; }
+    .round-pips { display: flex; gap: 5px; }
+    .round-pip { width: 28px; height: 7px; border-radius: 99px; background: var(--line); }
+    .round-pip.done { background: var(--green); }
+    .top-actions { display: flex; gap: 8px; }
+    .room-badge { display: inline-flex; align-items: center; min-height: 34px; max-width: 180px; padding: 0 10px; border: 1px solid #bdd6e4; border-radius: 10px; background: #e8f4fb; color: #235f80; font: 800 .72rem ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .quiet-btn, .primary-btn, .ghost-btn { min-height: 42px; border-radius: 12px; padding: 0 15px; border: 1px solid var(--line); cursor: pointer; font-weight: 700; }
+    .quiet-btn, .ghost-btn { background: rgba(255,255,255,.72); color: var(--ink); }
+    .primary-btn { border-color: var(--green); background: var(--green); color: white; }
+    .quiet-btn:hover, .ghost-btn:hover { background: white; border-color: #9eb5ad; }
+    .primary-btn:hover { background: #085d42; }
+
+    .scoreboard { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 9px; margin-bottom: 14px; }
+    .player-chip { border: 1px solid var(--line); background: rgba(255,255,255,.7); border-radius: 14px; padding: 10px 12px; min-width: 0; }
+    .player-chip.active { border-color: var(--green); background: white; box-shadow: 0 7px 20px rgba(11,110,79,.12); }
+    .player-chip-top { display: flex; align-items: center; gap: 7px; min-width: 0; }
+    .player-dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; background: var(--player-color, var(--green)); }
+    .player-chip-name { font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .player-chip-stats { display: flex; justify-content: space-between; gap: 8px; margin-top: 5px; color: var(--muted); font-size: .84rem; }
+    .player-chip-stats strong { color: var(--ink); }
+
+    .game-grid { display: grid; grid-template-columns: minmax(0,1fr) 350px; gap: 18px; align-items: start; }
+    .game-main { min-width: 0; }
+    .turn-panel { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 14px; padding: 14px 16px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: rgba(255,255,255,.86); box-shadow: 0 8px 24px rgba(22,63,51,.07); }
+    .turn-copy { min-width: 0; }
+    .eyebrow { margin: 0 0 3px; color: var(--green); font-size: .76rem; font-weight: 900; letter-spacing: .11em; text-transform: uppercase; }
+    .turn-title { margin: 0; font-family: "Arial Rounded MT Bold", "Avenir Next", sans-serif; font-size: clamp(1.15rem,2vw,1.55rem); letter-spacing: -.02em; }
+    .turn-help { margin: 3px 0 0; color: var(--muted); font-size: .9rem; }
+    .action-pick { display: flex; gap: 8px; }
+    .action-btn { min-width: 132px; min-height: 52px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--ink); cursor: pointer; text-align: left; padding: 8px 12px; }
+    .action-btn strong { display: block; }
+    .action-btn span { color: var(--muted); font-size: .78rem; }
+    .action-btn.active { background: var(--green); color: white; border-color: var(--green); }
+    .action-btn.active span { color: rgba(255,255,255,.76); }
+    .action-btn:disabled { opacity: .42; cursor: not-allowed; }
+
+    .membrane-intake { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; min-height: 52px; padding: 9px 12px; margin-bottom: 12px; border-left: 6px solid var(--blue); border-radius: 0 13px 13px 0; background: #e8f4fb; }
+    .membrane-intake > strong { color: #235f80; }
+    .membrane-intake > span { color: var(--muted); font-size: .88rem; }
+    .intake-options { display: flex; gap: 6px; flex-wrap: wrap; }
+    .intake-btn { min-height: 34px; border: 1px solid #bdd6e4; border-radius: 9px; padding: 0 10px; background: white; color: var(--ink); cursor: pointer; }
+    .intake-btn.active { background: var(--blue); color: white; border-color: var(--blue); }
+    .intake-btn:disabled { opacity: .42; cursor: not-allowed; }
+
+    .cell-board { position: relative; min-width: 0; padding: 28px 22px 26px; border: 8px solid var(--green); border-radius: 72px 105px 82px 96px / 82px 66px 104px 72px; background: radial-gradient(circle at 88% 6%, rgba(55,125,161,.13), transparent 24rem), linear-gradient(145deg, #edfbf5 0%, #dff4f4 100%); box-shadow: inset 0 0 0 4px rgba(18,152,103,.18), var(--shadow); overflow: hidden; }
+    .cell-board::before { content: "CELL MEMBRANE"; position: absolute; top: -1px; left: 54px; padding: 6px 10px; background: var(--green); color: white; border-radius: 0 0 9px 9px; font: 800 .72rem ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .09em; }
+    .cell-board::after { content: "CYTOPLASM"; position: absolute; right: 34px; bottom: 7px; color: rgba(23,37,34,.45); font: 800 .7rem ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .12em; }
+    .pathway { position: relative; display: grid; grid-template-columns: 108px minmax(0,1fr); gap: 12px; padding: 12px 0; }
+    .pathway + .pathway { border-top: 1px solid rgba(23,37,34,.12); }
+    .path-label { padding: 7px 0 0 12px; border-left: 5px solid var(--lane); }
+    .path-label strong { display: block; font: 800 .86rem ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .04em; }
+    .path-label span { display: block; margin-top: 5px; color: var(--muted); font-size: .79rem; line-height: 1.3; }
+    .path-content { min-width: 0; }
+    .card-row { display: flex; gap: 9px; min-height: 180px; overflow-x: auto; overflow-y: hidden; padding: 2px 2px 8px; scrollbar-width: thin; scroll-snap-type: x proximity; }
+    .empty-lane { width: 100%; min-height: 164px; display: grid; place-items: center; text-align: center; color: var(--muted); border: 2px dashed rgba(23,37,34,.16); border-radius: 16px; background: rgba(255,255,255,.32); }
+    .empty-lane strong { display: block; color: var(--ink); margin-bottom: 4px; }
+    .org-card { flex: 0 0 154px; min-height: 164px; scroll-snap-align: start; position: relative; display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid rgba(23,37,34,.15); border-top: 5px solid var(--lane); border-radius: 14px; background: rgba(255,255,255,.9); box-shadow: 0 6px 16px rgba(22,63,51,.08); }
+    .org-card.flash { animation: card-run .62s ease both; }
+    .org-card-head { display: flex; justify-content: space-between; gap: 5px; align-items: start; }
+    .org-icon { font-size: 1.45rem; line-height: 1; }
+    .org-kind { color: var(--muted); font: 800 .64rem ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .05em; text-transform: uppercase; }
+    .org-name { font-weight: 900; line-height: 1.08; }
+    .org-version { color: var(--muted); font: 700 .62rem ui-monospace, SFMono-Regular, Menlo, monospace; line-height: 1.2; }
+    .org-art { width: 44px; height: 58px; object-fit: cover; border-radius: 7px; border: 1px solid rgba(23,37,34,.13); box-shadow: 0 3px 8px rgba(22,63,51,.12); }
+    .org-effect { padding: 7px 6px; border-radius: 8px; background: color-mix(in srgb, var(--lane) 15%, white); font: 800 .75rem ui-monospace, SFMono-Regular, Menlo, monospace; line-height: 1.35; }
+    .org-learn { margin-top: auto; color: var(--muted); font-size: .72rem; line-height: 1.3; }
+    .activate-row { width: 100%; min-height: 40px; margin-top: 3px; border: 0; border-radius: 11px; background: var(--lane); color: #172522; cursor: pointer; font-weight: 900; }
+    .pathway[data-row="protein"] .activate-row { color: white; }
+    .activate-row:disabled { opacity: .34; cursor: not-allowed; }
+    .activation-beam { position: absolute; top: 10px; bottom: 48px; width: 54px; pointer-events: none; background: linear-gradient(90deg, transparent, rgba(255,255,255,.82), transparent); transform: translateX(-80px) skewX(-10deg); opacity: 0; }
+    .pathway.running .activation-beam { animation: beam 1.05s ease-in-out; }
+
+    .sidebar { display: grid; gap: 12px; min-width: 0; }
+    .side-card { border: 1px solid var(--line); border-radius: var(--radius); background: rgba(255,255,255,.9); box-shadow: 0 8px 24px rgba(22,63,51,.07); padding: 14px; }
+    .side-title { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+    .side-title h2 { margin: 0; font-size: 1.05rem; }
+    .side-title span { color: var(--muted); font-size: .78rem; }
+    .resources { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 6px; }
+    .resource { min-width: 0; padding: 7px 6px; border-radius: 10px; background: #f2f7f5; border: 1px solid #dde7e3; }
+    .resource-name { display: block; color: var(--muted); font-size: .69rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .resource-value { display: block; margin-top: 2px; font: 900 1rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .resource-value small { color: var(--muted); font-size: .65rem; }
+    .hand { display: grid; gap: 7px; max-height: 460px; overflow: auto; padding-right: 2px; }
+    .hand-card { width: 100%; border: 1px solid var(--line); border-left: 5px solid var(--lane); border-radius: 12px; background: white; color: var(--ink); padding: 9px 10px; cursor: pointer; text-align: left; }
+    .hand-card:hover:not(:disabled) { border-color: var(--lane); transform: translateY(-1px); box-shadow: 0 7px 16px rgba(22,63,51,.09); }
+    .hand-card:disabled { opacity: .48; cursor: not-allowed; }
+    .hand-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .hand-card-name { font-weight: 900; }
+    .hand-card-kind { color: var(--muted); font: 800 .64rem ui-monospace, SFMono-Regular, Menlo, monospace; text-transform: uppercase; }
+    .hand-card-version { margin-top: 3px; color: var(--muted); font: 700 .63rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .hand-card-art { width: 38px; height: 51px; flex: 0 0 auto; object-fit: cover; border-radius: 6px; border: 1px solid rgba(23,37,34,.13); }
+    .hand-card-effect { margin-top: 4px; color: var(--muted); font-size: .76rem; line-height: 1.3; }
+    .hand-card-bottom { display: flex; justify-content: space-between; gap: 8px; align-items: end; margin-top: 6px; }
+    .cost { font: 800 .72rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .card-status { max-width: 55%; color: var(--muted); font-size: .68rem; text-align: right; }
+    .build-footer, .need-footer { display: flex; gap: 8px; margin-top: 9px; }
+    .build-footer button, .need-footer button { flex: 1; }
+    .choice-box { margin-top: 9px; padding: 10px; border-radius: 12px; background: var(--violet-soft); border: 1px solid #d9d0ff; }
+    .choice-box strong { display: block; color: #4f3e9b; margin-bottom: 7px; }
+    .choice-options { display: grid; gap: 6px; }
+    .choice-options button { min-height: 38px; border: 1px solid #c9bcff; border-radius: 9px; background: white; color: var(--ink); cursor: pointer; text-align: left; padding: 0 9px; }
+    .needs { display: grid; gap: 7px; }
+    .need-card { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; align-items: center; padding: 10px; border-radius: 12px; background: #f7faf9; border: 1px solid #dce7e3; }
+    .need-card.ready { border-color: var(--green-2); background: var(--green-soft); }
+    .need-card strong { display: block; }
+    .need-cost { color: var(--muted); font-size: .74rem; margin-top: 3px; }
+    .need-points { color: var(--green); font-weight: 900; white-space: nowrap; }
+    .need-card button { grid-column: 1 / -1; min-height: 34px; border: 0; border-radius: 9px; background: var(--green); color: white; cursor: pointer; font-weight: 800; }
+    .need-card button:disabled { opacity: .35; cursor: not-allowed; }
+    .status-message { min-height: 54px; display: flex; gap: 10px; align-items: start; margin-top: 12px; padding: 11px 14px; border-left: 6px solid var(--green); border-radius: 0 13px 13px 0; background: var(--green-soft); }
+    .status-message-icon { font-size: 1.2rem; }
+    .status-message strong { display: block; }
+    .status-message span { display: block; margin-top: 2px; color: var(--muted); font-size: .88rem; }
+    .log { display: grid; gap: 5px; margin-top: 8px; }
+    .log-line { color: var(--muted); font-size: .76rem; }
+    .log-line strong { color: var(--ink); }
+
+    .screen { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px; background: linear-gradient(145deg, #0b6e4f 0%, #124c56 68%, #2f3b72 100%); }
+    .setup-card { width: min(720px,100%); max-height: calc(100vh - 40px); overflow: auto; border-radius: 28px; padding: clamp(22px,5vw,42px); background: white; box-shadow: 0 26px 80px rgba(0,0,0,.28); }
+    .setup-kicker { margin: 0 0 8px; color: var(--green); font-weight: 900; letter-spacing: .12em; font-size: .78rem; text-transform: uppercase; }
+    .setup-card h1 { margin: 0; font-family: "Arial Rounded MT Bold", "Avenir Next", sans-serif; font-size: clamp(2rem,7vw,4.2rem); letter-spacing: -.055em; line-height: .95; }
+    .setup-card > p { color: var(--muted); font-size: 1rem; line-height: 1.55; }
+    .count-pick { display: flex; align-items: center; gap: 8px; margin: 20px 0 14px; }
+    .count-pick span { font-weight: 800; margin-right: 4px; }
+    .count-btn { width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 12px; background: white; color: var(--ink); cursor: pointer; font-weight: 900; }
+    .count-btn.active { background: var(--green); color: white; border-color: var(--green); }
+    .name-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+    .name-field label { display: block; color: var(--muted); font-size: .78rem; font-weight: 800; margin-bottom: 5px; }
+    .name-field input { width: 100%; min-height: 46px; border: 1px solid var(--line); border-radius: 11px; padding: 0 12px; color: var(--ink); background: #f8fbfa; }
+    .setup-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 20px; align-items: center; }
+    .setup-actions small { color: var(--muted); }
+    .setup-actions .primary-btn { min-width: 180px; }
+    .online-entry { display: grid; gap: 9px; margin-top: 18px; padding: 14px; border: 1px solid #bdd6e4; border-radius: 15px; background: #eef8fb; }
+    .online-entry strong { display: block; color: #235f80; }
+    .online-entry span { display: block; margin-top: 3px; color: var(--muted); font-size: .82rem; line-height: 1.4; }
+    .online-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .online-actions button { flex: 1 1 180px; }
+
+    .pass-screen { position: fixed; inset: 0; z-index: 18; display: grid; place-items: center; padding: 20px; background: rgba(10,33,27,.91); backdrop-filter: blur(14px); color: white; }
+    .pass-card { width: min(520px,100%); text-align: center; }
+    .pass-orb { width: 92px; height: 92px; display: grid; place-items: center; margin: 0 auto 18px; border-radius: 50%; background: var(--next-color,var(--green)); border: 7px solid rgba(255,255,255,.22); font-size: 2.4rem; }
+    .pass-card p { margin: 0 0 6px; color: rgba(255,255,255,.68); font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .pass-card h2 { margin: 0 0 20px; font: 800 clamp(2rem,8vw,4rem) "Arial Rounded MT Bold", "Avenir Next", sans-serif; letter-spacing: -.04em; }
+    .pass-card button { min-width: 220px; min-height: 52px; background: white; color: var(--ink); border: 0; border-radius: 14px; cursor: pointer; font-weight: 900; }
+
+    dialog { width: min(700px,calc(100% - 32px)); max-height: calc(100vh - 40px); overflow: auto; border: 0; border-radius: 22px; padding: 0; color: var(--ink); background: white; box-shadow: 0 24px 80px rgba(0,0,0,.3); }
+    dialog::backdrop { background: rgba(10,33,27,.7); backdrop-filter: blur(5px); }
+    .dialog-inner { padding: 24px; }
+    .dialog-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+    .dialog-head h2 { margin: 0; }
+    .icon-btn { width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 11px; background: white; cursor: pointer; }
+    .rules-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin-top: 16px; }
+    .rule { padding: 13px; border-radius: 13px; background: #f3f8f6; }
+    .rule strong { display: block; margin-bottom: 4px; }
+    .rule span { color: var(--muted); font-size: .88rem; line-height: 1.45; }
+    .catalog-intro { margin: 8px 0 0; color: var(--muted); line-height: 1.45; }
+    .catalog-intro a { color: var(--green); font-weight: 800; }
+    .catalog-tabs { display: flex; gap: 7px; margin: 16px 0 10px; }
+    .catalog-tab { min-height: 36px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: #f6faf8; color: var(--ink); cursor: pointer; font-weight: 800; }
+    .catalog-tab.active { background: var(--green); border-color: var(--green); color: white; }
+    .catalog-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+    .catalog-card { padding: 10px; border: 1px solid var(--line); border-left: 5px solid var(--lane,var(--green)); border-radius: 12px; background: #fbfdfc; }
+    .catalog-card-top { display: flex; justify-content: space-between; gap: 8px; align-items: start; }
+    .catalog-card-head { display: flex; gap: 9px; align-items: center; min-width: 0; }
+    .catalog-art { width: 52px; height: 70px; flex: 0 0 auto; object-fit: cover; border-radius: 7px; border: 1px solid rgba(23,37,34,.13); box-shadow: 0 4px 9px rgba(22,63,51,.1); }
+    .catalog-card strong { line-height: 1.15; }
+    .catalog-meta { color: var(--muted); font: 800 .65rem ui-monospace, SFMono-Regular, Menlo, monospace; text-transform: uppercase; }
+    .catalog-card p { margin: 5px 0 0; color: var(--muted); font-size: .76rem; line-height: 1.35; }
+    .catalog-card .cost { display: block; margin-top: 7px; }
+    .catalog-foot { margin-top: 12px; color: var(--muted); font-size: .76rem; }
+    .room-code { display: inline-block; margin: 8px 0 12px; padding: 9px 14px; border-radius: 12px; background: var(--green-soft); color: var(--green); font: 900 1.55rem ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .16em; }
+    .room-panel { display: grid; gap: 12px; margin-top: 16px; }
+    .room-panel p { margin: 0; color: var(--muted); line-height: 1.45; }
+    .room-field { display: grid; gap: 5px; }
+    .room-field label { color: var(--muted); font-size: .78rem; font-weight: 800; }
+    .room-field input { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 10px; padding: 0 11px; color: var(--ink); background: #f8fbfa; }
+    .room-list { display: grid; gap: 6px; padding: 0; margin: 0; list-style: none; }
+    .room-list li { display: flex; justify-content: space-between; gap: 8px; padding: 9px 11px; border-radius: 10px; background: #f3f8f6; color: var(--ink); }
+    .room-list small { color: var(--muted); }
+    .room-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .room-actions > * { flex: 1 1 150px; }
+    .room-error { padding: 9px 11px; border-radius: 10px; background: var(--coral-soft); color: #9b392a; font-size: .82rem; line-height: 1.35; }
+    .results { display: grid; gap: 8px; margin: 18px 0; }
+    .result-row { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 10px; padding: 11px; border: 1px solid var(--line); border-radius: 12px; }
+    .result-rank { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: var(--green-soft); color: var(--green); font-weight: 900; }
+    .result-score { text-align: right; }
+    .result-score strong { display: block; }
+    .result-score span { color: var(--muted); font-size: .72rem; }
+
+    @keyframes beam { 0% { opacity: 0; transform: translateX(-80px) skewX(-10deg); } 12% { opacity: 1; } 86% { opacity: 1; } 100% { opacity: 0; transform: translateX(calc(100vw - 100px)) skewX(-10deg); } }
+    @keyframes card-run { 0%,100% { transform: translateY(0); } 45% { transform: translateY(-7px); box-shadow: 0 14px 25px rgba(22,63,51,.17); } }
+    @media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; } }
+    @media (max-width: 1080px) { .game-grid { grid-template-columns: 1fr; } .sidebar { grid-template-columns: repeat(2,minmax(0,1fr)); } .sidebar .side-card:last-child { grid-column: 1 / -1; } .hand { max-height: 360px; } }
+    @media (max-width: 780px) { .topbar { grid-template-columns: 1fr auto; } .round-banner { grid-column: 1 / -1; grid-row: 2; justify-self: stretch; justify-content: space-between; } .scoreboard { grid-template-columns: repeat(2,minmax(0,1fr)); } .turn-panel { grid-template-columns: 1fr; } .action-pick { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); } .action-btn { min-width: 0; } .cell-board { padding: 30px 12px 24px; border-width: 6px; border-radius: 34px; } .pathway { grid-template-columns: 1fr; } .path-label { display: flex; align-items: center; gap: 8px; padding-top: 2px; } .path-label span { margin: 0; } .sidebar { grid-template-columns: 1fr; } .sidebar .side-card:last-child { grid-column: auto; } }
+    @media (max-width: 520px) { .app { padding-inline: 10px; } .brand-sub { display: none; } .top-actions .quiet-btn:nth-of-type(2) { display: none; } .room-badge { max-width: 128px; } .scoreboard { gap: 6px; } .player-chip { padding: 8px; } .membrane-intake { align-items: flex-start; } .intake-options { width: 100%; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); } .intake-btn { padding: 0 4px; } .resources { grid-template-columns: repeat(2,minmax(0,1fr)); } .name-fields, .rules-grid { grid-template-columns: 1fr; } .setup-actions { align-items: stretch; flex-direction: column; } .setup-actions .primary-btn { width: 100%; } .cell-board::before { left: 22px; } .catalog-grid { grid-template-columns: 1fr; } .dialog-inner { padding: 18px; } }
+  </style>
+</head>
+<body>
+  <div id="setupScreen" class="screen">
+    <section class="setup-card" aria-labelledby="setupTitle">
+      <p class="setup-kicker">Plant cell engine game</p>
+      <h1 id="setupTitle">Cellworks</h1>
+      <p>2–4 人轮流构建自己的植物细胞。BUILD 扩展三条细胞引擎，ACTIVATE 让营养物穿过细胞膜并从左到右运行整行。</p>
+      <div class="count-pick" role="group" aria-label="玩家人数">
+        <span>玩家人数</span>
+        <button class="count-btn active" data-count="2" type="button">2</button>
+        <button class="count-btn" data-count="3" type="button">3</button>
+        <button class="count-btn" data-count="4" type="button">4</button>
+      </div>
+      <div id="nameFields" class="name-fields"></div>
+      <div class="setup-actions">
+        <small>同屏传递设备 · 每人每轮 4 次行动 · 共 4 轮 · Excel 牌库 50 张</small>
+        <button id="startGameBtn" class="primary-btn" type="button">开始游戏</button>
+      </div>
+      <div class="online-entry">
+        <div><strong>跨设备多人 · 无需登录</strong><span>创建房间后，把 6 位房间码发给朋友；每个人用自己的电脑打开同一个网址即可加入。</span></div>
+        <div class="online-actions"><button id="createRoomBtn" class="ghost-btn" type="button">创建线上房间</button><button id="joinRoomBtn" class="ghost-btn" type="button">加入房间</button></div>
+      </div>
+    </section>
+  </div>
+
+  <div id="passScreen" class="pass-screen" hidden>
+    <section class="pass-card">
+      <div class="pass-orb">🌱</div>
+      <p id="passEyebrow">请把设备交给</p>
+      <h2 id="passName">玩家 2</h2>
+      <button id="revealTurnBtn" type="button">开始我的回合</button>
+    </section>
+  </div>
+
+  <main id="gameApp" class="app" hidden>
+    <header class="topbar">
+      <div class="brand"><div class="brand-mark">◉</div><div><span class="brand-name">Cellworks</span><span class="brand-sub">Plant cell engine game</span></div></div>
+      <div class="round-banner"><strong id="roundLabel">第 1 轮</strong><div id="roundPips" class="round-pips"></div><span id="deckLabel">牌库 0</span></div>
+      <div class="top-actions"><span id="roomBadge" class="room-badge" hidden></span><button id="catalogBtn" class="quiet-btn" type="button">卡牌图鉴</button><button id="rulesBtn" class="quiet-btn" type="button">规则</button><button id="resetBtn" class="quiet-btn" type="button">重新开局</button></div>
+    </header>
+
+    <section id="scoreboard" class="scoreboard" aria-label="玩家得分"></section>
+
+    <div class="game-grid">
+      <div class="game-main">
+        <section class="turn-panel">
+          <div class="turn-copy"><p class="eyebrow">当前玩家</p><h1 id="turnTitle" class="turn-title">玩家 1 的细胞</h1><p id="turnHelp" class="turn-help">选择本回合要执行的行动。</p></div>
+          <div class="action-pick"><button class="action-btn" data-action="build" type="button"><strong>🔨 BUILD</strong><span>连续打出手牌</span></button><button class="action-btn" data-action="activate" type="button"><strong>⚙ ACTIVATE</strong><span>输入营养并运行一行</span></button><button id="cancelActionBtn" class="quiet-btn" type="button" hidden>取消选择</button></div>
+        </section>
+
+        <section class="membrane-intake" aria-label="细胞膜营养输入"><strong>Cell Membrane</strong><span>ACTIVATE 第一步，选择一种进入细胞的基础营养</span><div id="intakeOptions" class="intake-options"></div></section>
+
+        <section class="cell-board" aria-label="当前玩家的植物细胞板"><div id="pathways"></div></section>
+
+        <section class="status-message" aria-live="polite"><div class="status-message-icon">🌱</div><div><strong id="messageTitle">选择行动</strong><span id="messageText">BUILD 扩展引擎，ACTIVATE 运行引擎。</span></div></section>
+        <div id="activityLog" class="log" aria-label="最近行动"></div>
+      </div>
+
+      <aside class="sidebar">
+        <section class="side-card"><div class="side-title"><h2>Cell resources</h2><span id="resourceOwner">玩家 1</span></div><div id="resources" class="resources"></div></section>
+        <section class="side-card"><div class="side-title"><h2>Blueprint hand</h2><span id="handCount">0 张</span></div><div id="hand" class="hand"></div><div id="choiceBox" class="choice-box" hidden></div><div class="build-footer"><button id="finishBuildBtn" class="primary-btn" type="button" disabled>结束 BUILD</button></div></section>
+        <section class="side-card"><div class="side-title"><h2>Cell Needs</h2><span>公共目标 · 3 张</span></div><div id="needs" class="needs"></div><div id="needFooter" class="need-footer" hidden><button id="skipNeedBtn" class="ghost-btn" type="button">跳过目标并结束回合</button></div></section>
+      </aside>
+    </div>
+  </main>
+
+  <dialog id="rulesDialog">
+    <div class="dialog-inner"><div class="dialog-head"><h2>快速规则</h2><button class="icon-btn" data-close-dialog="rulesDialog" type="button" aria-label="关闭">×</button></div><div class="rules-grid"><div class="rule"><strong>每回合二选一</strong><span>BUILD 可以连续打任意张付得起的手牌；ACTIVATE 输入 1 个基础营养，再选择一整行从左到右运行。</span></div><div class="rule"><strong>资源的来源</strong><span>Water、CO₂、Amino acids 从外界经 Cell Membrane 进入；Glucose、Energy、Protein 必须由细胞内部制造。</span></div><div class="rule"><strong>三种卡牌标签</strong><span>↻ MULTIPLE 可以重复建造。◆ CORE 和 ⬆ UPGRADE 每个细胞最多一张。每张牌的版本名与功能来自 Excel 图鉴。</span></div><div class="rule"><strong>完成 Cell Need</strong><span>ACTIVATE 后可以完成最多 1 张公共目标，不额外消耗行动。完成后立刻补出新的目标。</span></div><div class="rule"><strong>四轮游戏</strong><span>每位玩家每轮有 4 个 Action Tokens。所有玩家用完后进入下一轮，第 4 轮结束后比较 Growth。</span></div><div class="rule"><strong>胜负</strong><span>Growth 最高者获胜。平局依次比较 Finished Protein、已建成的 organelle 数量。</span></div></div></div>
+  </dialog>
+
+  <dialog id="roomDialog">
+    <div class="dialog-inner"><div class="dialog-head"><div><p class="setup-kicker">No-login room</p><h2>跨设备多人</h2></div><button class="icon-btn" data-close-dialog="roomDialog" type="button" aria-label="关闭">×</button></div><div id="roomDialogBody"></div></div>
+  </dialog>
+
+  <dialog id="catalogDialog">
+    <div class="dialog-inner"><div class="dialog-head"><div><p class="setup-kicker">Excel card catalog</p><h2>卡牌图鉴</h2></div><button class="icon-btn" data-close-dialog="catalogDialog" type="button" aria-label="关闭">×</button></div><p class="catalog-intro">牌库内容来自项目里的 bio-cell-card-deck.xlsx。每张实体牌保留了 Excel 的版本名、费用、前置条件和生物学功能。<a href="card-fronts/bio-cell-card-fronts.pdf" target="_blank" rel="noopener">打开 / 打印卡面 PDF</a></p><div class="catalog-tabs"><button class="catalog-tab active" data-catalog-tab="organelles" type="button">Organelle cards</button><button class="catalog-tab" data-catalog-tab="goals" type="button">Goal cards</button></div><div id="catalogCards" class="catalog-grid"></div><p id="catalogFoot" class="catalog-foot"></p></div>
+  </dialog>
+
+  <dialog id="resultsDialog">
+    <div class="dialog-inner"><div class="dialog-head"><div><p class="setup-kicker">Four rounds complete</p><h2 id="winnerTitle">游戏结束</h2></div></div><div id="results" class="results"></div><button id="playAgainBtn" class="primary-btn" type="button">再玩一局</button></div>
+  </dialog>
+
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script src="room.js?v=2"></script>
+  <script src="card-data.js"></script>
+  <script>
+    (() => {
+      'use strict';
+
+      const CARD_CATALOG = Array.isArray(window.CELLWORKS_CARD_CATALOG) ? window.CELLWORKS_CARD_CATALOG : [];
+      const GOAL_CATALOG = Array.isArray(window.CELLWORKS_GOAL_CATALOG) ? window.CELLWORKS_GOAL_CATALOG : [];
+      const rowIdFor = pathway => ({ Energy: 'energy', Protein: 'protein', Support: 'support' }[pathway] || String(pathway || '').toLowerCase());
+      const groupFor = name => ({ Chloroplast: 'chloroplast', Mitochondrion: 'mitochondrion', Ribosome: 'ribosome', 'Rough ER': 'roughER', Golgi: 'golgi', 'Central Vacuole': 'vacuole', Nucleus: 'nucleus', 'Cell Wall': 'wall', 'Cell Membrane': 'membrane' }[name] || String(name || '').toLowerCase().replace(/\s+/g, ''));
+      const kindFor = cardClass => cardClass === 'Multiple' ? 'multiple' : cardClass === 'Upgrade' ? 'upgrade' : 'core';
+      const CARD_DEFS = Object.fromEntries(CARD_CATALOG.map(source => {
+        const cost = {};
+        if (typeof source.energyCost === 'number') cost.energy = source.energyCost;
+        if (typeof source.proteinCost === 'number') cost.protein = source.proteinCost;
+        const costTbd = source.cardClass === 'Upgrade' && source.totalBuildCost === null;
+        if (costTbd) cost.energy = 1;
+        return [source.id, {
+          ...source,
+          name: source.name,
+          icon: source.icon || '◌',
+          row: rowIdFor(source.pathway),
+          rank: Math.max(0, Number(source.order || 1) - 1),
+          kind: kindFor(source.cardClass),
+          group: groupFor(source.name),
+          cost,
+          costTbd,
+          version: source.version || source.name,
+          effect: source.gameplayEffect || source.buildEffect || '—',
+          learn: source.biologicalFunction || '—'
+        }];
+      }));
+      const CARD_IDS = Object.keys(CARD_DEFS);
+      const starterFor = group => CARD_IDS.find(id => CARD_DEFS[id].group === group);
+      const STARTER_IDS = ['chloroplast','mitochondrion','ribosome','vacuole','nucleus'].map(starterFor).filter(Boolean);
+
+      const PATHS = [
+        { id: 'energy', name: 'ENERGY', note: 'external substances → glucose → energy', color: '#f4c84b' },
+        { id: 'protein', name: 'PROTEIN', note: 'amino acids → protein → finished protein', color: '#ed7059' },
+        { id: 'support', name: 'SUPPORT', note: 'storage → control → stability', color: '#3aaf79' }
+      ];
+      const RESOURCE_META = {
+        water: ['💧','Water'], co2: ['◌','CO₂'], amino: ['🟣','Amino'], glucose: ['🍬','Glucose'], energy: ['⚡','Energy'], protein: ['🔵','Protein'], finished: ['📦','Finished'], stability: ['▦','Stability']
+      };
+      const NEED_TEMPLATES = {
+        grow: { name: 'Grow', icon: '🌱', points: 3, cost: { energy: 2, protein: 1, water: 1 } },
+        repair: { name: 'Repair', icon: '🔧', points: 2, cost: { energy: 1, protein: 1 } },
+        produce: { name: 'Produce cell material', icon: '📦', points: 4, cost: { finished: 1, energy: 1 } }
+      };
+      const PLAYER_COLORS = ['#0b6e4f','#7763c5','#d75c48','#377da1'];
+      let setupCount = 2;
+      let state = null;
+      let currentPlayerIndex = 0;
+      let firstPlayerIndex = 0;
+      let phase = 'choose';
+      let builtThisAction = 0;
+      let selectedIntake = null;
+      let choiceCards = [];
+      let activity = [];
+      let flashRow = null;
+      let roomView = 'create';
+      let roomError = '';
+      let roomLobby = { players: [], maxPlayers: 4 };
+      let network = { role: 'local', transport: null, roomCode: '', localPlayerIndex: 0, started: false, applyingRemote: false, seatToPlayerIndex: new Map() };
+
+      const $ = id => document.getElementById(id);
+      const shuffle = items => {
+        const result = [...items];
+        for (let i = result.length - 1; i > 0; i -= 1) { const j = Math.floor(Math.random() * (i + 1)); [result[i], result[j]] = [result[j], result[i]]; }
+        return result;
+      };
+      const currentPlayer = () => state.players[currentPlayerIndex];
+      const displayPlayer = () => state?.players?.[network.localPlayerIndex] || currentPlayer();
+      const isOnline = () => network.role !== 'local';
+      const isLocalTurn = () => !isOnline() || network.localPlayerIndex === currentPlayerIndex;
+      const allBuilt = player => Object.values(player.board).flat();
+      const hasBuilt = (player, key) => allBuilt(player).some(id => id === key || CARD_DEFS[id]?.group === key);
+      const countGroup = (player, group) => allBuilt(player).filter(id => CARD_DEFS[id]?.group === group).length;
+      const uniqueBuilt = player => new Set(allBuilt(player).map(id => CARD_DEFS[id]?.group || id)).size;
+      const canPay = (player, cost) => Object.entries(cost).every(([key,value]) => player.resources[key] >= value);
+      const pay = (player, cost) => Object.entries(cost).forEach(([key,value]) => { player.resources[key] -= value; });
+      const costText = cost => Object.entries(cost).map(([key,value]) => `${RESOURCE_META[key]?.[0] || ''}${value}`).join('  ') || '—';
+      const buildCostText = card => card.costTbd ? `TBD · ${costText(card.cost)} prototype` : costText(card.cost);
+      const kindText = card => card.kind === 'core' ? '◆ core' : card.kind === 'upgrade' ? '⬆ upgrade' : '↻ multiple';
+      const CARD_ART_BY_VERSION = new Map();
+      CARD_CATALOG.forEach(card => { if (card.version && !CARD_ART_BY_VERSION.has(card.version)) CARD_ART_BY_VERSION.set(card.version, card.id); });
+      const cardImage = card => `card-fronts/${encodeURIComponent(CARD_ART_BY_VERSION.get(card?.version) || card?.id || '')}.png`;
+      const cardCopies = card => CARD_CATALOG.filter(source => source.version === card?.version).length || 1;
+      const addLog = text => { activity.unshift({ player: currentPlayer().name, text }); activity = activity.slice(0, 4); };
+
+      function renderNameFields() {
+        $('nameFields').innerHTML = Array.from({ length: setupCount }, (_, index) => `<div class="name-field"><label for="playerName${index}">玩家 ${index + 1}</label><input id="playerName${index}" maxlength="16" value="玩家 ${index + 1}" autocomplete="off"></div>`).join('');
+      }
+
+      function makeDeck(playerCount) {
+        const deck = [...CARD_IDS];
+        const starterGroups = STARTER_IDS.map(id => CARD_DEFS[id].group);
+        const removed = new Set();
+        for (let playerIndex = 0; playerIndex < playerCount; playerIndex += 1) {
+          starterGroups.forEach(group => {
+            const copy = deck.find(id => !removed.has(id) && CARD_DEFS[id].group === group);
+            if (copy) removed.add(copy);
+          });
+        }
+        return shuffle(deck.filter(id => !removed.has(id)));
+      }
+
+      function makePlayer(name, index) {
+        return {
+          name, color: PLAYER_COLORS[index], actions: 4, growth: 0, completedNeeds: 0, waterCap: 3, handCap: 8, rowCapacity: 8,
+          resources: { water: 2, co2: 1, amino: 1, glucose: 0, energy: 5, protein: 0, finished: 0, stability: 0 },
+          board: { energy: [], protein: [], support: [] },
+          hand: [...STARTER_IDS]
+        };
+      }
+
+      function startGame(names) {
+        if (!Array.isArray(names) || names.length < 2 || names.length > 4) throw new Error('游戏需要 2–4 位玩家。');
+        state = { round: 1, players: names.map((name,index) => makePlayer((String(name).trim() || `玩家 ${index + 1}`).slice(0,16),index)), deck: makeDeck(names.length), discard: [], needs: ['grow','repair','produce'], needDeck: shuffle(['grow','repair','produce','grow','repair','produce']), gameOver: false };
+        state.players.forEach(player => { if (state.deck.length) player.hand.push(state.deck.shift()); });
+        currentPlayerIndex = 0; firstPlayerIndex = 0; phase = 'choose'; builtThisAction = 0; selectedIntake = null; choiceCards = []; activity = []; flashRow = null;
+        network.started = true;
+        $('setupScreen').hidden = true; $('gameApp').hidden = false;
+        setMessage('选择行动', 'BUILD 扩展自己的细胞，ACTIVATE 让一条 pathway 工作。');
+        render();
+        broadcastRoomState();
+      }
+
+      function setMessage(title, text) { $('messageTitle').textContent = title; $('messageText').textContent = text; }
+
+      function updateRoomBadge() {
+        const badge = $('roomBadge');
+        if (!badge) return;
+        if (!isOnline() || !network.roomCode || !state) { badge.hidden = true; badge.textContent = ''; return; }
+        const local = state.players?.[network.localPlayerIndex];
+        badge.hidden = false;
+        badge.textContent = `房间 ${network.roomCode} · ${local?.name || `玩家 ${network.localPlayerIndex + 1}`}`;
+      }
+
+      function roomSnapshotFor(seat) {
+        const snapshot = JSON.parse(JSON.stringify({ state, currentPlayerIndex, firstPlayerIndex, phase, builtThisAction, selectedIntake, choiceCards, activity, flashRow }));
+        if (snapshot.state) snapshot.state.players.forEach((player, index) => { if (index !== seat) player.hand = []; });
+        if (snapshot.currentPlayerIndex !== seat) snapshot.choiceCards = [];
+        return snapshot;
+      }
+
+      function broadcastRoomState() {
+        if (network.role !== 'host' || !network.transport || !state) return;
+        network.transport.connections.forEach((_, seat) => {
+          const playerIndex = network.seatToPlayerIndex.get(seat) ?? seat;
+          network.transport.sendToSeat(seat, { type: 'state', seat: playerIndex, snapshot: roomSnapshotFor(playerIndex) });
+        });
+        updateRoomBadge();
+      }
+
+      function syncRoomState() {
+        if (network.role === 'host') broadcastRoomState();
+        updateRoomBadge();
+      }
+
+      function applyRoomSnapshot(message) {
+        const snapshot = message?.snapshot;
+        if (!snapshot?.state) return;
+        state = snapshot.state;
+        currentPlayerIndex = Number.isInteger(snapshot.currentPlayerIndex) ? snapshot.currentPlayerIndex : 0;
+        firstPlayerIndex = Number.isInteger(snapshot.firstPlayerIndex) ? snapshot.firstPlayerIndex : 0;
+        phase = snapshot.phase || 'choose';
+        builtThisAction = Number(snapshot.builtThisAction || 0);
+        selectedIntake = snapshot.selectedIntake || null;
+        choiceCards = Array.isArray(snapshot.choiceCards) ? snapshot.choiceCards : [];
+        activity = Array.isArray(snapshot.activity) ? snapshot.activity : [];
+        flashRow = snapshot.flashRow || null;
+        if (Number.isInteger(message.seat)) network.localPlayerIndex = message.seat;
+        network.started = true;
+        $('setupScreen').hidden = true;
+        $('gameApp').hidden = false;
+        $('passScreen').hidden = true;
+        if ($('roomDialog').open) $('roomDialog').close();
+        updateRoomBadge();
+        render();
+        if (state.gameOver && !$('resultsDialog').open) showResults();
+      }
+
+      function disconnectRoom() {
+        if (network.transport) network.transport.close();
+        network = { role: 'local', transport: null, roomCode: '', localPlayerIndex: 0, started: false, applyingRemote: false, seatToPlayerIndex: new Map() };
+        roomLobby = { players: [], maxPlayers: 4 };
+        roomView = 'create';
+        roomError = '';
+        updateRoomBadge();
+      }
+
+      function renderRoomDialog(view = roomView) {
+        roomView = view;
+        const body = $('roomDialogBody');
+        if (!body) return;
+        if (roomView === 'join') {
+          body.innerHTML = `<div class="room-panel"><p>输入房间码和你的名字。无需注册或登录。</p><div class="room-field"><label for="roomCodeInput">房间码</label><input id="roomCodeInput" maxlength="6" autocomplete="off" autocapitalize="characters" placeholder="例如 ABC123"></div><div class="room-field"><label for="joinNameInput">你的名字</label><input id="joinNameInput" maxlength="16" autocomplete="off" value="玩家"></div>${roomError ? `<div class="room-error">${escapeHtml(roomError)}</div>` : ''}<div class="room-actions"><button class="ghost-btn" data-room-action="back" type="button">返回</button><button class="primary-btn" data-room-action="join" type="button">加入房间</button></div></div>`;
+          return;
+        }
+        if (roomView === 'creating') {
+          body.innerHTML = `<div class="room-panel"><p>正在创建房间…</p>${roomError ? `<div class="room-error">${escapeHtml(roomError)}</div>` : ''}</div>`;
+          return;
+        }
+        if (roomView === 'joining') {
+          body.innerHTML = `<div class="room-panel"><p>正在加入房间 <strong>${escapeHtml(network.roomCode)}</strong>…</p>${roomError ? `<div class="room-error">${escapeHtml(roomError)}</div>` : ''}<div class="room-actions"><button class="ghost-btn" data-room-action="leave" type="button">取消</button></div></div>`;
+          return;
+        }
+        if (roomView === 'lobby' || roomView === 'waiting') {
+          const players = roomLobby.players || [];
+          const connected = players.filter(player => player.connected !== false);
+          const list = players.length ? players.map(player => `<li><span>${escapeHtml(player.name)}${player.seat === network.localPlayerIndex ? ' · 你' : ''}</span><small>${player.connected === false ? '已离开' : player.seat === 0 ? '房主' : `玩家 ${player.seat + 1}`}</small></li>`).join('') : '<li><span>等待玩家加入…</span></li>';
+          const hostControls = network.role === 'host' ? `<div class="room-actions"><button class="ghost-btn" data-room-action="copy" type="button">复制房间码</button><button class="primary-btn" data-room-action="start" type="button" ${connected.length < 2 ? 'disabled' : ''}>开始游戏（${connected.length} 人）</button></div>` : `<div class="room-actions"><button class="ghost-btn" data-room-action="leave" type="button">离开房间</button></div>`;
+          body.innerHTML = `<div class="room-panel"><p>${network.role === 'host' ? '把下面的房间码发给朋友。' : '已加入房间，等待房主开始游戏。'}</p><div class="room-code">${escapeHtml(network.roomCode || '------')}</div><ul class="room-list">${list}</ul>${roomError ? `<div class="room-error">${escapeHtml(roomError)}</div>` : ''}${hostControls}</div>`;
+          return;
+        }
+        body.innerHTML = `<div class="room-panel"><p>你可以创建一个新房间，或加入朋友发来的房间码。房间不保存账号信息，在 Vercel 的 HTTPS 地址上连接最稳定。</p><div class="room-actions"><button class="ghost-btn" data-room-action="create" type="button">创建房间</button><button class="primary-btn" data-room-action="join-form" type="button">加入房间</button></div></div>`;
+      }
+
+      function roomCallbacks() {
+        return {
+          hostReady: payload => {
+            network.roomCode = payload.roomCode;
+            roomLobby = network.transport.getLobby();
+            roomError = '';
+            renderRoomDialog('lobby');
+            updateRoomBadge();
+          },
+          lobby: payload => {
+            roomLobby = payload;
+            if (!network.started) renderRoomDialog(network.role === 'host' ? 'lobby' : 'waiting');
+          },
+          playerJoin: payload => {
+            roomLobby = network.transport.getLobby();
+            roomError = '';
+            if (!network.started) renderRoomDialog('lobby');
+          },
+          playerLeave: payload => {
+            roomLobby = network.transport.getLobby();
+            if (!network.started) { roomError = `${payload.player?.name || '玩家'} 已离开房间。`; renderRoomDialog('lobby'); }
+          },
+          message: payload => {
+            if (network.role === 'host') {
+              const message = payload.message || {};
+              if (message.type === 'command') executeRoomCommand(message.command, message.payload || {}, payload.seat);
+              return;
+            }
+            handleRoomMessage(payload.message || {});
+          },
+          disconnected: payload => { roomError = payload?.message || '房主已离开房间。'; if (network.role === 'client') renderRoomDialog('join'); },
+          status: payload => { roomError = payload?.message || ''; if (roomView === 'lobby' || roomView === 'waiting') renderRoomDialog(roomView); },
+          error: payload => { roomError = payload?.message || '房间连接失败，请重试。'; renderRoomDialog(network.role === 'host' ? 'lobby' : network.role === 'client' ? 'join' : 'create'); }
+        };
+      }
+
+      function handleRoomMessage(message) {
+        if (message.type === 'seat') {
+          network.localPlayerIndex = message.seat;
+          network.roomCode = message.roomCode || network.roomCode;
+          roomView = 'waiting';
+          renderRoomDialog('waiting');
+          updateRoomBadge();
+        } else if (message.type === 'lobby') {
+          roomLobby = { players: message.players || [], maxPlayers: message.maxPlayers || 4 };
+          if (!network.started) renderRoomDialog('waiting');
+        } else if (message.type === 'state') {
+          applyRoomSnapshot(message);
+        } else if (message.type === 'room-full') {
+          roomError = '房间人数已满。';
+          renderRoomDialog('join');
+        }
+      }
+
+      function executeRoomCommand(command, payload, seat) {
+        if (network.role !== 'host' || !state || state.gameOver || seat !== currentPlayerIndex) return;
+        network.applyingRemote = true;
+        try {
+          if (command === 'action') chooseAction(payload.action);
+          else if (command === 'play') playCard(Number(payload.index));
+          else if (command === 'finish-build') finishBuild();
+          else if (command === 'intake') selectIntake(payload.resource);
+          else if (command === 'run') runPathway(payload.rowId);
+          else if (command === 'choice') keepChoice(Number(payload.index));
+          else if (command === 'need') completeNeed(Number(payload.slot));
+          else if (command === 'skip') finishTurn();
+          else if (command === 'cancel') cancelAction();
+        } finally {
+          network.applyingRemote = false;
+          syncRoomState();
+        }
+      }
+
+      function sendRoomCommand(command, payload = {}) {
+        if (network.role === 'client' && network.transport) network.transport.sendToHost({ type: 'command', command, payload });
+      }
+
+      function requestAction(action) { if (!isLocalTurn()) return; if (network.role === 'client') { sendRoomCommand('action', { action }); return; } chooseAction(action); syncRoomState(); }
+      function requestPlay(index) { if (!isLocalTurn()) return; if (network.role === 'client') { sendRoomCommand('play', { index }); return; } playCard(index); syncRoomState(); }
+      function requestFinishBuild() { if (!isLocalTurn()) return; if (network.role === 'client') { sendRoomCommand('finish-build'); return; } finishBuild(); syncRoomState(); }
+      function requestIntake(resource) { if (!isLocalTurn()) return; if (network.role === 'client') { sendRoomCommand('intake', { resource }); return; } selectIntake(resource); syncRoomState(); }
+      function requestRun(rowId) { if (!isLocalTurn()) return; if (network.role === 'client') { sendRoomCommand('run', { rowId }); return; } runPathway(rowId); syncRoomState(); }
+      function requestChoice(index) { if (!isLocalTurn()) return; if (network.role === 'client') { sendRoomCommand('choice', { index }); return; } keepChoice(index); syncRoomState(); }
+      function requestNeed(slot) { if (!isLocalTurn()) return; if (network.role === 'client') { sendRoomCommand('need', { slot }); return; } completeNeed(slot); syncRoomState(); }
+      function requestSkip() { if (!isLocalTurn()) return; if (network.role === 'client') { sendRoomCommand('skip'); return; } if (phase === 'need' && !choiceCards.length) { addLog('跳过了 Cell Need'); finishTurn(); syncRoomState(); } }
+      function requestCancel() { if (!isLocalTurn()) return; if (network.role === 'client') { sendRoomCommand('cancel'); return; } cancelAction(); syncRoomState(); }
+
+      function createOnlineRoom() {
+        if (typeof window.CellworksRoom !== 'function') {
+          roomError = '多人连接组件未加载，请刷新页面后重试。';
+          renderRoomDialog('create');
+          $('roomDialog').showModal();
+          return;
+        }
+        disconnectRoom();
+        network.role = 'host';
+        network.localPlayerIndex = 0;
+        network.transport = new window.CellworksRoom(roomCallbacks());
+        roomError = '';
+        renderRoomDialog('creating');
+        $('roomDialog').showModal();
+        const hostName = String($('playerName0')?.value || '房主').trim().slice(0, 16) || '房主';
+        network.transport.create(hostName, setupCount);
+      }
+
+      function openJoinRoom() {
+        roomError = '';
+        renderRoomDialog('join');
+        $('roomDialog').showModal();
+        setTimeout(() => $('roomCodeInput')?.focus(), 0);
+      }
+
+      function joinOnlineRoom() {
+        if (typeof window.CellworksRoom !== 'function') {
+          roomError = '多人连接组件未加载，请刷新页面后重试。';
+          renderRoomDialog('join');
+          return;
+        }
+        const code = String($('roomCodeInput')?.value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+        const name = String($('joinNameInput')?.value || '玩家').trim().slice(0, 16) || '玩家';
+        if (code.length !== 6) { roomError = '房间码需要 6 位字母或数字。'; renderRoomDialog('join'); return; }
+        disconnectRoom();
+        network.role = 'client';
+        network.roomCode = code;
+        network.transport = new window.CellworksRoom(roomCallbacks());
+        renderRoomDialog('joining');
+        network.transport.join(code, name);
+      }
+
+      function startHostedGame() {
+        if (network.role !== 'host' || !network.transport) return;
+        const joined = network.transport.getLobby().players.filter(player => player.connected !== false).sort((a,b) => a.seat - b.seat);
+        if (joined.length < 2) { roomError = '至少需要 2 位玩家才能开始。'; renderRoomDialog('lobby'); return; }
+        network.seatToPlayerIndex = new Map(joined.map((player,index) => [player.seat, index]));
+        startGame(joined.map(player => player.name));
+        network.started = true;
+        if ($('roomDialog').open) $('roomDialog').close();
+        broadcastRoomState();
+      }
+
+      function chooseAction(action) {
+        if (!state || state.gameOver || phase !== 'choose') return;
+        phase = action;
+        builtThisAction = 0;
+        selectedIntake = null;
+        if (action === 'build') setMessage('BUILD 已开始', '从手牌连续打出任意张付得起的牌，然后结束 BUILD。');
+        else setMessage('ACTIVATE 已开始', '先让 Cell Membrane 输入 1 个基础营养，再选择一整行。');
+        render();
+      }
+
+      function cancelAction() {
+        if (!state || !['build','activate'].includes(phase) || builtThisAction || choiceCards.length) return;
+        phase = 'choose';
+        selectedIntake = null;
+        setMessage('重新选择行动', 'BUILD 扩展自己的细胞，ACTIVATE 让一条 pathway 工作。');
+        render();
+      }
+
+      function otherPlayersHave(test) { return state.players.some((player,index) => index !== currentPlayerIndex && test(player)); }
+
+      function prerequisiteCheck(player, card) {
+        const prerequisite = String(card.prerequisite || '').toLowerCase();
+        if (!prerequisite || prerequisite === 'none') return { ok: true, reason: '' };
+        if (prerequisite.includes('cell membrane')) return { ok: true, reason: '' };
+        if (prerequisite.includes('chloroplast') && !hasBuilt(player, 'chloroplast')) return { ok: false, reason: '先建一张 Chloroplast' };
+        if (prerequisite.includes('rough er directly right') && !player.board.protein.some((id,index) => CARD_DEFS[id]?.group === 'roughER' && index > 0 && CARD_DEFS[player.board.protein[index - 1]]?.group === 'ribosome')) return { ok: false, reason: '需要左侧紧邻 Rough ER 的 Ribosome' };
+        if (prerequisite.includes('rough er') && !hasBuilt(player, 'roughER')) return { ok: false, reason: '先建一张 Rough ER' };
+        if (prerequisite.includes('at least 2 ribosomes') && countGroup(player, 'ribosome') < 2) return { ok: false, reason: '需要 Protein row 中有 2 张 Ribosome' };
+        if (prerequisite.includes('ribosome') && !hasBuilt(player, 'ribosome')) return { ok: false, reason: '先建一张 Ribosome' };
+        if (prerequisite.includes('two processed proteins') && player.resources.protein < 2) return { ok: false, reason: '需要至少 2 Protein' };
+        if (prerequisite.includes('processed protein') && player.resources.protein < 1) return { ok: false, reason: '需要至少 1 Protein' };
+        if (prerequisite.includes('vacuole stores at least 3') && (!hasBuilt(player, 'vacuole') || player.resources.water < 3)) return { ok: false, reason: '需要 Vacuole 与至少 3 Water' };
+        if (prerequisite.includes('vacuole stores at least 2') && (!hasBuilt(player, 'vacuole') || player.resources.water < 2)) return { ok: false, reason: '需要 Vacuole 与至少 2 Water' };
+        if (prerequisite.includes('adjacent chloroplast') && !player.board.energy.some((id,index,row) => CARD_DEFS[id]?.group === 'chloroplast' && (CARD_DEFS[row[index - 1]]?.group === 'chloroplast' || CARD_DEFS[row[index + 1]]?.group === 'chloroplast'))) return { ok: false, reason: '需要相邻的 Chloroplast' };
+        if (prerequisite.includes('another organelle in this row') && player.board[card.row].length < 1) return { ok: false, reason: '需要本 row 中已有另一张 organelle' };
+        if (prerequisite.includes('glucose available') && player.resources.glucose < 1) return { ok: false, reason: '需要至少 1 Glucose' };
+        if (prerequisite.includes('water available') && player.resources.water < 1) return { ok: false, reason: '需要至少 1 Water' };
+        if (prerequisite.includes('another player has amino acids') && !otherPlayersHave(other => other.resources.amino > 0)) return { ok: false, reason: '需要另一位玩家有 Amino' };
+        if (prerequisite.includes('another player has water') && !otherPlayersHave(other => other.resources.water > 0)) return { ok: false, reason: '需要另一位玩家有 Water' };
+        if (prerequisite.includes('another player can receive protein') && !otherPlayersHave(other => other.resources.finished < 6)) return { ok: false, reason: '需要另一位玩家可以接收 Protein' };
+        if (prerequisite.includes('another player has a card') && !otherPlayersHave(other => other.hand.length > 0)) return { ok: false, reason: '需要另一位玩家有 blueprint card' };
+        return { ok: true, reason: '' };
+      }
+
+      function buildCheck(player, cardId) {
+        const card = CARD_DEFS[cardId];
+        if (!card) return { ok: false, reason: '未知 card' };
+        if (card.kind !== 'multiple' && hasBuilt(player, card.group)) return { ok: false, reason: '◆ CORE / upgrade 每个细胞限 1 张' };
+        if (player.board[card.row].length >= player.rowCapacity) return { ok: false, reason: '这一 row 已满，先建造 Expanding Cell Wall' };
+        const prerequisite = prerequisiteCheck(player, card);
+        if (!prerequisite.ok) return prerequisite;
+        if (!canPay(player,card.cost)) return { ok: false, reason: `缺少 ${buildCostText(card)}` };
+        return { ok: true, reason: '打出这张牌' };
+      }
+
+      function playCard(handIndex) {
+        if (phase !== 'build' || choiceCards.length) return false;
+        const player = currentPlayer();
+        const cardId = player.hand[handIndex];
+        if (!cardId) return false;
+        const check = buildCheck(player,cardId);
+        if (!check.ok) { setMessage('现在不能建造', check.reason); render(); return false; }
+        const card = CARD_DEFS[cardId];
+        pay(player,card.cost);
+        player.hand.splice(handIndex,1);
+        const row = player.board[card.row];
+        let insertAt = row.findIndex(existing => CARD_DEFS[existing].rank > card.rank);
+        if (insertAt < 0) insertAt = row.length;
+        row.splice(insertAt,0,cardId);
+        builtThisAction += 1;
+        if (card.group === 'vacuole' && typeof card.waterCapPlus === 'number') player.waterCap = Math.max(player.waterCap, card.waterCapPlus);
+        if (card.id === 'WAL-EX') { player.handCap += 1; player.rowCapacity += 1; }
+        syncStability(player);
+        addLog(`建造了 ${card.name}`);
+        setMessage(`${card.name} · ${card.version} 已建造`, `${card.learn} 你可以继续 BUILD。`);
+        if (card.group === 'nucleus' && card.activationTrigger === 'When Built') drawForChoice(card.cardsDrawn || 2,'Nucleus 建造能力');
+        render();
+        return true;
+      }
+
+      function drawForChoice(count, source) {
+        if (currentPlayer().hand.length >= currentPlayer().handCap) { setMessage('手牌已满', 'Cell Wall 或完成 BUILD 可以提高容量。'); return; }
+        const drawn = state.deck.splice(0,count);
+        if (!drawn.length) { setMessage('牌库已空', '没有更多 organelle blueprint。'); return; }
+        if (drawn.length === 1) { currentPlayer().hand.push(drawn[0]); setMessage(`${source}`, `抽到 ${CARD_DEFS[drawn[0]].name}。`); return; }
+        choiceCards = drawn;
+        setMessage(source, `抽 ${drawn.length} 张，选择 1 张加入手牌。`);
+      }
+
+      function keepChoice(index) {
+        if (!choiceCards[index]) return;
+        const kept = choiceCards[index];
+        choiceCards.forEach((id,i) => { if (i !== index) state.discard.push(id); });
+        if (currentPlayer().hand.length < currentPlayer().handCap) currentPlayer().hand.push(kept);
+        else state.discard.push(kept);
+        choiceCards = [];
+        setMessage(`保留 ${CARD_DEFS[kept].name}`, phase === 'build' ? '可以继续 BUILD，或结束行动。' : '现在可以完成最多 1 张 Cell Need。');
+        render();
+      }
+
+      function finishBuild() {
+        if (phase !== 'build' || !builtThisAction || choiceCards.length) return false;
+        addLog(`完成 BUILD，共建造 ${builtThisAction} 张`);
+        finishTurn();
+        return true;
+      }
+
+      function selectIntake(resource) {
+        if (phase !== 'activate' || !['water','co2','amino'].includes(resource)) return;
+        selectedIntake = resource;
+        setMessage(`选择 ${RESOURCE_META[resource][1]}`, '现在选择一条已经建有 organelle 的 pathway。');
+        render();
+      }
+
+      function convert(player, input, output, context) {
+        if (!canPay(player,input)) return false;
+        pay(player,input);
+        Object.entries(output).forEach(([key,value]) => { player.resources[key] += value; });
+        context.conversions += 1;
+        return true;
+      }
+
+      function addResource(player, key, amount, cap = Infinity) {
+        const before = player.resources[key] || 0;
+        const after = Math.min(cap, before + amount);
+        player.resources[key] = after;
+        return after - before;
+      }
+
+      function activateCard(player, cardId, context) {
+        const card = CARD_DEFS[cardId];
+        if (!card) return false;
+        const group = card.group;
+        const rowCards = context.rowCards || [];
+        const nextGroup = index => CARD_DEFS[rowCards[index + 1]]?.group;
+        const previousGroup = index => CARD_DEFS[rowCards[index - 1]]?.group;
+
+        if (['CHL-01','CHL-02','CHL-03','CHL-04'].includes(cardId)) {
+          const made = convert(player, { water: 1, co2: 1 }, { glucose: 2 }, context);
+          if (made) context.producedGlucose = true;
+          return made;
+        }
+        if (cardId === 'CHL-LH') {
+          const made = convert(player, { water: 1, co2: 1 }, { glucose: 1 }, context);
+          if (made) { context.producedGlucose = true; addResource(player, 'glucose', countGroup(player, 'chloroplast') === 1 ? 1 : 0); }
+          return made;
+        }
+        if (cardId === 'CHL-WE') {
+          if (player.resources.water < 2) return false;
+          const made = convert(player, { co2: 1 }, { glucose: 2 }, context);
+          if (made) context.producedGlucose = true;
+          return made;
+        }
+        if (cardId === 'CHL-NET') {
+          const adjacent = [previousGroup(context.index), nextGroup(context.index)].filter(groupName => groupName === 'chloroplast').length;
+          if (!adjacent) return false;
+          addResource(player, 'glucose', Math.min(2, adjacent));
+          context.producedGlucose = true;
+          context.conversions += 1;
+          return true;
+        }
+        if (['MIT-01','MIT-02','MIT-03','MIT-04'].includes(cardId)) return convert(player, { glucose: 1 }, { energy: 2 }, context);
+        if (cardId === 'MIT-EF') {
+          let made = false;
+          for (let count = 0; count < 2; count += 1) made = convert(player, { glucose: 1 }, { energy: 2 }, context) || made;
+          return made;
+        }
+        if (cardId === 'MIT-CP') {
+          const made = convert(player, { glucose: 1 }, { energy: 2 }, context);
+          if (made && context.producedGlucose) addResource(player, 'energy', 1);
+          return made;
+        }
+        if (cardId === 'MIT-DI') { addResource(player, 'energy', 2); context.conversions += 1; return true; }
+
+        if (['RIB-01','RIB-02','RIB-03','RIB-04'].includes(cardId)) {
+          const made = convert(player, { amino: 1, energy: 1 }, { protein: 1 }, context);
+          if (made) context.proteinMade = true;
+          return made;
+        }
+        if (cardId === 'RIB-CL') {
+          let made = false;
+          for (let count = 0; count < 2; count += 1) { const result = convert(player, { amino: 1, energy: 1 }, { protein: 1 }, context); made = result || made; }
+          if (made) context.proteinMade = true;
+          return made;
+        }
+        if (cardId === 'RIB-ER') {
+          if (nextGroup(context.index) !== 'roughER') return false;
+          const made = convert(player, { amino: 1, energy: 1 }, { protein: 2 }, context);
+          if (made) context.proteinMade = true;
+          return made;
+        }
+        if (cardId === 'RIB-SH') {
+          const helper = state.players.find((other,index) => index !== currentPlayerIndex && other.resources.amino > 0);
+          if (!helper) return false;
+          helper.resources.amino -= 1;
+          helper.resources.protein += 1;
+          player.resources.protein += 1;
+          context.proteinMade = true;
+          context.conversions += 1;
+          return true;
+        }
+
+        if (['ER-01','ER-02','ER-03'].includes(cardId)) { if (!context.proteinMade) return false; player.resources.protein += 1; context.conversions += 1; return true; }
+        if (cardId === 'ER-TR') { if (player.resources.protein < 1) return false; context.processedProtein = true; return true; }
+        if (cardId === 'ER-DO') { if (previousGroup(context.index) === 'ribosome' && context.proteinMade) player.resources.protein += 1; return true; }
+        if (cardId === 'ER-NT') {
+          const amount = Math.min(2, Math.floor(countGroup(player, 'ribosome') / 2));
+          if (!amount) return false;
+          player.resources.protein += amount; context.conversions += 1; return true;
+        }
+
+        if (['GOL-01','GOL-02','GOL-03'].includes(cardId)) return convert(player, { protein: 1 }, { finished: 1 }, context);
+        if (cardId === 'GOL-SO') {
+          const packaged = convert(player, { protein: 1 }, { finished: 1 }, context);
+          if (packaged) addResource(player, 'energy', 1);
+          return packaged;
+        }
+        if (cardId === 'GOL-EF') {
+          let packaged = false;
+          for (let count = 0; count < 2; count += 1) packaged = convert(player, { protein: 1 }, { finished: 1 }, context) || packaged;
+          return packaged;
+        }
+        if (cardId === 'GOL-DE') {
+          if (!player.resources.finished) return false;
+          player.resources.finished -= 1;
+          addResource(player, 'energy', 2);
+          drawForChoice(1, 'Golgi Protein Delivery');
+          context.conversions += 1;
+          return true;
+        }
+
+        if (group === 'vacuole') {
+          if (cardId === 'VAC-TU') { if (player.resources.water < 3) return false; player.growth += 1; return true; }
+          if (cardId === 'VAC-EX') { const gained = addResource(player, 'water', 2, player.waterCap); return gained > 0; }
+          if (cardId === 'VAC-ST') return true;
+          const gained = addResource(player, 'water', 1, player.waterCap);
+          return gained > 0;
+        }
+        if (group === 'nucleus') {
+          if (cardId === 'NUC-GS') { drawForChoice(3, 'Nucleus Gene Selection'); return true; }
+          if (cardId === 'NUC-CC') {
+            const targetIndex = rowCards.findIndex((id,index) => index !== context.index && CARD_DEFS[id]?.group !== 'nucleus');
+            if (targetIndex < 0) return false;
+            return activateCard(player, rowCards[targetIndex], { ...context, index: targetIndex });
+          }
+          if (cardId === 'NUC-SI') {
+            const other = state.players.find((other,index) => index !== currentPlayerIndex);
+            if (other && state.deck.length) other.hand.push(state.deck.shift());
+            drawForChoice(2, 'Nucleus Shared Instructions');
+            return true;
+          }
+          drawForChoice(1, 'Nucleus 激活能力');
+          return true;
+        }
+        if (group === 'wall') return true;
+        if (group === 'membrane') {
+          if (cardId === 'MEM-TP') {
+            if (player.resources.water < player.waterCap) addResource(player, 'water', 1, player.waterCap);
+            else if (player.resources.co2 < 6) addResource(player, 'co2', 1);
+            else addResource(player, 'amino', 1);
+            return true;
+          }
+          return true;
+        }
+        const input = Object.fromEntries(Object.entries(card.inputs || {}).filter(([key,value]) => key !== 'light' && typeof value === 'number'));
+        const output = Object.fromEntries(Object.entries(card.outputs || {}).filter(([,value]) => typeof value === 'number'));
+        return Object.keys(input).length ? convert(player, input, output, context) : card.activationTrigger === 'Passive' || card.activationTrigger === 'When Built';
+      }
+
+      function runPathway(rowId) {
+        if (phase !== 'activate') return false;
+        const player = currentPlayer();
+        if (!selectedIntake) { setMessage('先选择一种基础营养', 'Water、CO₂ 或 Amino acids 会先经过 Cell Membrane。'); render(); return false; }
+        if (!player.board[rowId] || !player.board[rowId].length) { setMessage('这条 pathway 还是空的', '先用 BUILD 放入 organelle card。'); render(); return false; }
+        if (selectedIntake === 'water' && player.resources.water >= player.waterCap) { setMessage('储水已满', '改选 CO₂ 或 Amino acids，或建造 Central Vacuole 提高上限。'); render(); return false; }
+        player.resources[selectedIntake] += 1;
+        const rowCards = [...player.board[rowId]];
+        const context = { proteinMade: false, producedGlucose: false, processedProtein: false, conversions: 0, rowCards, index: 0 };
+        const ran = [];
+        const skipped = [];
+        rowCards.forEach((id,index) => { context.index = index; (activateCard(player,id,context) ? ran : skipped).push(id); });
+        syncStability(player);
+        flashRow = rowId;
+        phase = 'need';
+        addLog(`输入 ${RESOURCE_META[selectedIntake][1]}，激活 ${PATHS.find(path => path.id === rowId).name}`);
+        const ranText = ran.length ? ran.map(id => CARD_DEFS[id].name).join(' → ') : '没有卡牌成功运行';
+        setMessage('Pathway 已从左到右运行', `${ranText}${skipped.length ? `；跳过 ${skipped.map(id => CARD_DEFS[id].name).join('、')}` : ''}。现在可以完成最多 1 张 Cell Need。`);
+        render();
+        window.setTimeout(() => { flashRow = null; render(); }, 1050);
+        return true;
+      }
+
+      function completeNeed(slot) {
+        if (phase !== 'need' || choiceCards.length) return false;
+        const needId = state.needs[slot];
+        const need = NEED_TEMPLATES[needId];
+        const player = currentPlayer();
+        if (!need || !canPay(player,need.cost)) return false;
+        pay(player,need.cost);
+        player.growth += need.points;
+        player.completedNeeds += 1;
+        state.needs[slot] = state.needDeck.length ? state.needDeck.shift() : null;
+        addLog(`完成 ${need.name}，获得 ${need.points} Growth`);
+        finishTurn();
+        return true;
+      }
+
+      function syncStability(player) { player.resources.stability = hasBuilt(player,'wall') ? 1 + (player.resources.water >= 3 ? 1 : 0) : 0; }
+
+      function finishTurn() {
+        const player = currentPlayer();
+        player.actions -= 1;
+        phase = 'choose'; builtThisAction = 0; selectedIntake = null; choiceCards = []; flashRow = null;
+        if (state.players.every(item => item.actions === 0)) {
+          if (state.round >= 4) { state.gameOver = true; render(); showResults(); return; }
+          state.round += 1;
+          state.players.forEach(item => { item.actions = 4; });
+          firstPlayerIndex = (firstPlayerIndex + 1) % state.players.length;
+          currentPlayerIndex = firstPlayerIndex;
+          showPass(true);
+        } else {
+          let next = currentPlayerIndex;
+          do { next = (next + 1) % state.players.length; } while (state.players[next].actions === 0);
+          currentPlayerIndex = next;
+          showPass(false);
+        }
+        setMessage('选择行动', 'BUILD 扩展自己的细胞，ACTIVATE 让一条 pathway 工作。');
+        render();
+      }
+
+      function showPass(newRound) {
+        const player = currentPlayer();
+        if (isOnline()) { $('passScreen').hidden = true; return; }
+        $('passEyebrow').textContent = newRound ? `第 ${state.round} 轮开始 · 请把设备交给` : '请把设备交给';
+        $('passName').textContent = player.name;
+        $('passScreen').style.setProperty('--next-color',player.color);
+        $('passScreen').hidden = false;
+      }
+
+      function showResults() {
+        const ranked = [...state.players].sort((a,b) => b.growth - a.growth || b.resources.finished - a.resources.finished || allBuilt(b).length - allBuilt(a).length);
+        const top = ranked[0];
+        const tied = ranked.filter(player => player.growth === top.growth && player.resources.finished === top.resources.finished && allBuilt(player).length === allBuilt(top).length);
+        $('winnerTitle').textContent = tied.length > 1 ? `${tied.map(player => player.name).join('、')} 并列获胜` : `${top.name} 获胜`;
+        $('results').innerHTML = ranked.map((player,index) => `<div class="result-row"><span class="result-rank">${index + 1}</span><div><strong>${escapeHtml(player.name)}</strong><span style="display:block;color:var(--muted);font-size:.75rem">${uniqueBuilt(player)}/8 organelles · ${player.completedNeeds} needs</span></div><div class="result-score"><strong>${player.growth} Growth</strong><span>${player.resources.finished} Finished protein</span></div></div>`).join('');
+        $('resultsDialog').showModal();
+      }
+
+      function escapeHtml(value) { const node = document.createElement('span'); node.textContent = String(value); return node.innerHTML; }
+
+      function renderCatalog(mode = 'organelles') {
+        document.querySelectorAll('[data-catalog-tab]').forEach(button => button.classList.toggle('active', button.dataset.catalogTab === mode));
+        if (mode === 'goals') {
+          $('catalogCards').innerHTML = GOAL_CATALOG.map(goal => `<article class="catalog-card" style="--lane:var(--violet)"><div class="catalog-card-top"><strong>${escapeHtml(goal.name || goal.id)}</strong><span class="catalog-meta">${escapeHtml(goal.id)} · ${escapeHtml(goal.phase || '')}</span></div><p><strong>Score based on</strong> ${escapeHtml(goal.scoreBasedOn || '—')}</p><p><strong>Scoring</strong> ${escapeHtml(goal.scoringMethod || '—')}</p><p>${escapeHtml(goal.basis || goal.encourages || '')}</p></article>`).join('');
+          $('catalogFoot').textContent = `${GOAL_CATALOG.length} 张 Goal cards 来自 Cell Needs 工作表。`;
+          return;
+        }
+        const unique = [];
+        const seen = new Set();
+        CARD_CATALOG.forEach(source => { if (!seen.has(source.version)) { seen.add(source.version); unique.push(CARD_DEFS[source.id]); } });
+        $('catalogCards').innerHTML = unique.map(card => `<article class="catalog-card" style="--lane:${PATHS.find(path => path.id === card.row)?.color || 'var(--green)'}"><div class="catalog-card-top"><div class="catalog-card-head"><img class="catalog-art" src="${cardImage(card)}" alt="${escapeHtml(card.name)} card front" loading="lazy"><div><strong>${escapeHtml(card.icon)} ${escapeHtml(card.name)}</strong><p><strong>${escapeHtml(card.version)}</strong> · ${escapeHtml(card.row)} row</p></div></div><span class="catalog-meta">${escapeHtml(card.id)} · ${escapeHtml(kindText(card))}</span></div><p>${escapeHtml(card.effect)}</p><p>${escapeHtml(card.learn)}</p><span class="cost">Build ${escapeHtml(buildCostText(card))} · ${cardCopies(card)} 张</span><p>Prerequisite: ${escapeHtml(card.prerequisite || 'None')}</p></article>`).join('');
+        $('catalogFoot').textContent = `${window.CELLWORKS_CATALOG_META?.physicalCardCount || CARD_CATALOG.length} 张实体牌 · ${unique.length} 个版本。牌库会把 Excel 中的实体牌逐张加入。`;
+      }
+
+      function renderScoreboard() {
+        $('scoreboard').innerHTML = state.players.map((player,index) => `<article class="player-chip${index === currentPlayerIndex ? ' active' : ''}" style="--player-color:${player.color}"><div class="player-chip-top"><span class="player-dot"></span><span class="player-chip-name">${escapeHtml(player.name)}</span></div><div class="player-chip-stats"><span><strong>${player.growth}</strong> Growth</span><span><strong>${player.actions}</strong> actions</span></div></article>`).join('');
+      }
+
+      function renderPathways() {
+        const player = displayPlayer();
+        $('pathways').innerHTML = PATHS.map(path => {
+          const cards = player.board[path.id];
+          const rowHtml = cards.length ? cards.map((id,index) => { const card = CARD_DEFS[id]; return `<article class="org-card${flashRow === path.id ? ' flash' : ''}" style="--lane:${path.color};animation-delay:${index * 130}ms"><div class="org-card-head"><span class="org-icon">${card.icon}</span><span class="org-kind">${kindText(card)}</span><img class="org-art" src="${cardImage(card)}" alt="" loading="lazy"></div><div class="org-name">${card.name}</div><div class="org-version">${card.version} · ${card.id}</div><div class="org-effect">${card.effect}</div><div class="org-learn">${card.learn}</div></article>`; }).join('') : '<div class="empty-lane"><div><strong>这条 pathway 还没有卡牌</strong><span>从 Blueprint hand 打出第一张 organelle</span></div></div>';
+          const canRun = phase === 'activate' && selectedIntake && cards.length && isLocalTurn();
+          return `<section class="pathway${flashRow === path.id ? ' running' : ''}" data-row="${path.id}" style="--lane:${path.color}"><div class="path-label"><strong>${path.name}</strong><span>${path.note}</span></div><div class="path-content"><div class="activation-beam"></div><div class="card-row">${rowHtml}</div><button class="activate-row" data-run-row="${path.id}" type="button" ${canRun ? '' : 'disabled'}>从左到右运行 ${path.name} →</button></div></section>`;
+        }).join('');
+      }
+
+      function renderResources() {
+        const player = displayPlayer();
+        syncStability(player);
+        $('resourceOwner').textContent = `${player.name}${isOnline() ? ' · 你的细胞' : ''}`;
+        $('resources').innerHTML = Object.entries(RESOURCE_META).map(([key,[icon,name]]) => `<div class="resource"><span class="resource-name">${icon} ${name}</span><span class="resource-value">${player.resources[key]}${key === 'water' ? `<small> / ${player.waterCap}</small>` : ''}</span></div>`).join('');
+      }
+
+      function renderHand() {
+        const player = displayPlayer();
+        $('handCount').textContent = `${player.hand.length}/${player.handCap} 张`;
+        $('hand').innerHTML = player.hand.length ? player.hand.map((id,index) => {
+          const card = CARD_DEFS[id];
+          const check = buildCheck(player,id);
+          const enabled = phase === 'build' && !choiceCards.length && isLocalTurn() && check.ok;
+          const status = !isLocalTurn() ? `等待 ${currentPlayer().name}` : phase !== 'build' ? '选择 BUILD' : check.reason;
+          return `<button class="hand-card" style="--lane:${PATHS.find(path => path.id === card.row)?.color || 'var(--green)'}" data-hand-index="${index}" type="button" ${enabled ? '' : 'disabled'}><div class="hand-card-top"><span class="hand-card-name">${card.icon} ${card.name}</span><span class="hand-card-kind">${kindText(card)}</span><img class="hand-card-art" src="${cardImage(card)}" alt="" loading="lazy"></div><div class="hand-card-version">${card.version} · ${card.id} · ${cardCopies(card)} 张</div><div class="hand-card-effect">${card.effect} · ${card.learn}</div><div class="hand-card-bottom"><span class="cost">Build ${buildCostText(card)}</span><span class="card-status">${status}</span></div></button>`;
+        }).join('') : '<div class="empty-lane"><div><strong>手牌已空</strong><span>Nucleus 可以抽取新的 blueprint</span></div></div>';
+        $('finishBuildBtn').disabled = phase !== 'build' || !builtThisAction || choiceCards.length || !isLocalTurn();
+        $('finishBuildBtn').textContent = `结束 BUILD · 已建 ${builtThisAction} 张`;
+        $('choiceBox').hidden = !choiceCards.length;
+        $('choiceBox').innerHTML = choiceCards.length ? `<strong>选择 1 张 blueprint</strong><div class="choice-options">${choiceCards.map((id,index) => `<button data-choice-index="${index}" type="button">${CARD_DEFS[id].icon} ${CARD_DEFS[id].name} · ${CARD_DEFS[id].version} · ${buildCostText(CARD_DEFS[id])}</button>`).join('')}</div>` : '';
+      }
+
+      function renderNeeds() {
+        const player = currentPlayer();
+        $('needs').innerHTML = state.needs.map((id,index) => {
+          if (!id) return '<div class="need-card"><span>目标牌库已空</span></div>';
+          const need = NEED_TEMPLATES[id];
+          const ready = phase === 'need' && !choiceCards.length && isLocalTurn() && canPay(player,need.cost);
+          return `<article class="need-card${ready ? ' ready' : ''}"><div><strong>${need.icon} ${need.name}</strong><div class="need-cost">${costText(need.cost)}</div></div><span class="need-points">+${need.points} Growth</span><button data-need-slot="${index}" type="button" ${ready ? '' : 'disabled'}>完成这个 Cell Need</button></article>`;
+        }).join('');
+        $('needFooter').hidden = phase !== 'need' || choiceCards.length;
+      }
+
+      function renderIntake() {
+        $('intakeOptions').innerHTML = ['water','co2','amino'].map(key => `<button class="intake-btn${selectedIntake === key ? ' active' : ''}" data-intake="${key}" type="button" ${phase === 'activate' && isLocalTurn() ? '' : 'disabled'}>${RESOURCE_META[key][0]} ${RESOURCE_META[key][1]}</button>`).join('');
+      }
+
+      function renderLog() {
+        $('activityLog').innerHTML = activity.map(item => `<div class="log-line"><strong>${escapeHtml(item.player)}</strong> ${escapeHtml(item.text)}</div>`).join('');
+      }
+
+      function render() {
+        if (!state) return;
+        $('roundLabel').textContent = `第 ${state.round} 轮`;
+        $('roundPips').innerHTML = Array.from({ length: 4 },(_,index) => `<span class="round-pip${index < state.round ? ' done' : ''}"></span>`).join('');
+        $('deckLabel').textContent = `牌库 ${state.deck.length} · 弃牌 ${state.discard.length}`;
+        $('turnTitle').textContent = `${currentPlayer().name} 的细胞`;
+        $('resourceOwner').textContent = currentPlayer().name;
+        $('turnHelp').textContent = !isLocalTurn() ? `等待 ${currentPlayer().name} 完成 ${phase === 'choose' ? '行动' : phase === 'build' ? 'BUILD' : phase === 'activate' ? 'ACTIVATE' : '目标选择'}` : phase === 'choose' ? `剩余 ${currentPlayer().actions} 个 Action Tokens` : phase === 'build' ? '本次 BUILD 可以连续打出多张牌' : phase === 'activate' ? '先选择营养，再运行一整行' : '完成最多 1 张 Cell Need，或跳过';
+        document.querySelectorAll('[data-action]').forEach(button => { button.classList.toggle('active',button.dataset.action === phase); button.disabled = phase !== 'choose' || !isLocalTurn(); });
+        $('cancelActionBtn').hidden = !['build','activate'].includes(phase) || builtThisAction > 0 || choiceCards.length > 0 || !isLocalTurn();
+        renderScoreboard(); renderPathways(); renderResources(); renderHand(); renderNeeds(); renderIntake(); renderLog(); updateRoomBadge();
+      }
+
+      function publicState() {
+        if (!state) return { status: 'setup' };
+        const player = currentPlayer();
+        return { status: state.gameOver ? 'complete' : 'playing', round: state.round, currentPlayer: player.name, actionsLeft: player.actions, phase, selectedIntake, resources: { ...player.resources }, hand: [...player.hand], board: JSON.parse(JSON.stringify(player.board)), visibleNeeds: [...state.needs], scores: state.players.map(item => ({ name: item.name, growth: item.growth, actions: item.actions })) };
+      }
+
+      function registerWebMcp() {
+        const context = document.modelContext;
+        if (!context || typeof context.registerTool !== 'function') return;
+        const register = tool => { try { Promise.resolve(context.registerTool(tool)).catch(() => {}); } catch (_) {} };
+        register({ name: 'get_cellworks_state', title: 'Read Cellworks game', description: 'Read the current multiplayer game, active player, phase, resources, hand, board and public Cell Needs.', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: false }, execute: () => publicState() });
+        register({ name: 'start_cellworks_game', title: 'Start Cellworks game', description: 'Start a new 2–4 player local multiplayer Cellworks game using the supplied player names.', inputSchema: { type: 'object', properties: { playerNames: { type: 'array', minItems: 2, maxItems: 4, items: { type: 'string', minLength: 1, maxLength: 16 } } }, required: ['playerNames'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: false }, execute: input => { startGame(input.playerNames); return publicState(); } });
+        register({ name: 'choose_cellworks_action', title: 'Choose turn action', description: 'Choose BUILD or ACTIVATE for the current player while the game is waiting for an action.', inputSchema: { type: 'object', properties: { action: { type: 'string', enum: ['build','activate'] } }, required: ['action'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: false }, execute: input => { if (phase !== 'choose') throw new Error('Current turn is not waiting for an action.'); chooseAction(input.action); return publicState(); } });
+        register({ name: 'play_cellworks_organelle', title: 'Play organelle card', description: 'Play one named organelle card from the current player hand during BUILD. Call repeatedly to play several cards in the same action.', inputSchema: { type: 'object', properties: { cardId: { type: 'string', enum: Object.keys(CARD_DEFS) } }, required: ['cardId'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: false }, execute: input => { const index = currentPlayer().hand.indexOf(input.cardId); if (index < 0 || !playCard(index)) throw new Error('That card cannot be played now.'); return publicState(); } });
+        register({ name: 'finish_cellworks_build', title: 'Finish BUILD action', description: 'End the current BUILD after at least one organelle was played and pass play to the next player.', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: false }, execute: () => { if (!finishBuild()) throw new Error('BUILD cannot be finished now.'); return publicState(); } });
+        register({ name: 'activate_cellworks_pathway', title: 'Activate pathway', description: 'Choose the Cell Membrane nutrient intake and activate one populated pathway from left to right.', inputSchema: { type: 'object', properties: { nutrient: { type: 'string', enum: ['water','co2','amino'] }, pathway: { type: 'string', enum: ['energy','protein','support'] } }, required: ['nutrient','pathway'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: false }, execute: input => { if (phase === 'choose') chooseAction('activate'); if (phase !== 'activate') throw new Error('ACTIVATE is not available now.'); selectIntake(input.nutrient); if (!runPathway(input.pathway)) throw new Error('That pathway cannot run now.'); return publicState(); } });
+        register({ name: 'resolve_cellworks_activation', title: 'Finish ACTIVATE action', description: 'Complete one visible Cell Need by slot 0–2, or omit needSlot to skip, then pass play to the next player.', inputSchema: { type: 'object', properties: { needSlot: { type: 'integer', minimum: 0, maximum: 2 } }, additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: false }, execute: input => { if (phase !== 'need' || choiceCards.length) throw new Error('Resolve any Nucleus choice first, or activate a pathway.'); if (Number.isInteger(input.needSlot)) { if (!completeNeed(input.needSlot)) throw new Error('That Cell Need cannot be completed.'); } else finishTurn(); return publicState(); } });
+        register({ name: 'choose_cellworks_blueprint', title: 'Choose Nucleus blueprint', description: 'Resolve a Nucleus draw by keeping one of the visible blueprint choices.', inputSchema: { type: 'object', properties: { choiceIndex: { type: 'integer', minimum: 0, maximum: 2 } }, required: ['choiceIndex'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: false }, execute: input => { if (!choiceCards[input.choiceIndex]) throw new Error('No blueprint exists at that choice.'); keepChoice(input.choiceIndex); return publicState(); } });
+      }
+
+      document.addEventListener('click', event => {
+        const count = event.target.closest('[data-count]');
+        if (count) { setupCount = Number(count.dataset.count); document.querySelectorAll('[data-count]').forEach(button => button.classList.toggle('active',button === count)); renderNameFields(); return; }
+        const roomAction = event.target.closest('[data-room-action]');
+        if (roomAction) {
+          const actionName = roomAction.dataset.roomAction;
+          if (actionName === 'create') createOnlineRoom();
+          else if (actionName === 'join-form') openJoinRoom();
+          else if (actionName === 'join') joinOnlineRoom();
+          else if (actionName === 'start') startHostedGame();
+          else if (actionName === 'back') { roomError = ''; renderRoomDialog('create'); }
+          else if (actionName === 'leave') { disconnectRoom(); if ($('roomDialog').open) $('roomDialog').close(); }
+          else if (actionName === 'copy') { navigator.clipboard?.writeText(network.roomCode).then(() => { roomError = '房间码已复制。'; renderRoomDialog('lobby'); }).catch(() => { roomError = '请手动复制上面的房间码。'; renderRoomDialog('lobby'); }); }
+          return;
+        }
+        const action = event.target.closest('[data-action]'); if (action) { requestAction(action.dataset.action); return; }
+        const hand = event.target.closest('[data-hand-index]'); if (hand) { requestPlay(Number(hand.dataset.handIndex)); return; }
+        const intake = event.target.closest('[data-intake]'); if (intake) { requestIntake(intake.dataset.intake); return; }
+        const row = event.target.closest('[data-run-row]'); if (row) { requestRun(row.dataset.runRow); return; }
+        const choice = event.target.closest('[data-choice-index]'); if (choice) { requestChoice(Number(choice.dataset.choiceIndex)); return; }
+        const need = event.target.closest('[data-need-slot]'); if (need) { requestNeed(Number(need.dataset.needSlot)); return; }
+        const catalogTab = event.target.closest('[data-catalog-tab]'); if (catalogTab) { renderCatalog(catalogTab.dataset.catalogTab); return; }
+        const closer = event.target.closest('[data-close-dialog]'); if (closer) { $(closer.dataset.closeDialog).close(); }
+      });
+
+      $('startGameBtn').addEventListener('click', () => startGame(Array.from({ length: setupCount },(_,index) => $(`playerName${index}`).value)));
+      $('createRoomBtn').addEventListener('click', createOnlineRoom);
+      $('joinRoomBtn').addEventListener('click', openJoinRoom);
+      $('finishBuildBtn').addEventListener('click', requestFinishBuild);
+      $('cancelActionBtn').addEventListener('click', requestCancel);
+      $('skipNeedBtn').addEventListener('click', requestSkip);
+      $('revealTurnBtn').addEventListener('click', () => { $('passScreen').hidden = true; });
+      $('catalogBtn').addEventListener('click', () => { renderCatalog('organelles'); $('catalogDialog').showModal(); });
+      $('rulesBtn').addEventListener('click', () => $('rulesDialog').showModal());
+      $('resetBtn').addEventListener('click', () => { if (window.confirm('放弃当前游戏并重新设置玩家？')) { disconnectRoom(); state = null; $('gameApp').hidden = true; $('setupScreen').hidden = false; } });
+      $('playAgainBtn').addEventListener('click', () => { $('resultsDialog').close(); disconnectRoom(); state = null; $('gameApp').hidden = true; $('setupScreen').hidden = false; });
+      $('roomDialog').addEventListener('close', () => { if (!network.started && network.role !== 'local') disconnectRoom(); });
+      renderNameFields();
+      renderRoomDialog('create');
+      registerWebMcp();
+    })();
+  </script>
+</body>
+</html>
