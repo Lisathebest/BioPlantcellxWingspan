@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b6e4f">
-  <meta name="description" content="2–4 人同屏游玩的植物细胞引擎构筑桌游模拟器。">
+  <meta name="description" content="支持单人挑战与 2–4 人游玩的植物细胞引擎构筑桌游模拟器。">
   <title>Cellworks · 植物细胞桌游</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230b6e4f'/%3E%3Cellipse cx='32' cy='32' rx='21' ry='16' fill='%23d9f7e9' stroke='%23ffffff' stroke-width='3'/%3E%3Ccircle cx='27' cy='31' r='7' fill='%237763c5'/%3E%3Cpath d='M38 22c7 3 9 9 5 18-8-2-11-10-5-18Z' fill='%23f4c84b'/%3E%3C/svg%3E">
   <style>
@@ -55,6 +55,7 @@
     .primary-btn:hover { background: #085d42; }
 
     .scoreboard { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 9px; margin-bottom: 14px; }
+    .scoreboard.solo { grid-template-columns: 1fr; }
     .player-chip { border: 1px solid var(--line); background: rgba(255,255,255,.7); border-radius: 14px; padding: 10px 12px; min-width: 0; }
     .player-chip.active { border-color: var(--green); background: white; box-shadow: 0 7px 20px rgba(11,110,79,.12); }
     .player-chip-top { display: flex; align-items: center; gap: 7px; min-width: 0; }
@@ -62,6 +63,18 @@
     .player-chip-name { font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .player-chip-stats { display: flex; justify-content: space-between; gap: 8px; margin-top: 5px; color: var(--muted); font-size: .84rem; }
     .player-chip-stats strong { color: var(--ink); }
+    .solo-goal { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px 18px; align-items: center; margin-bottom: 14px; padding: 14px 18px; border: 1px solid #a9d8bb; border-left: 6px solid var(--green); border-radius: 14px; background: linear-gradient(105deg, #e9f9ef, #f7fcfa); }
+    .solo-goal p { margin: 0 0 3px; color: var(--green); font: 900 .69rem ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .1em; text-transform: uppercase; }
+    .solo-goal strong { display: block; font-size: 1.04rem; }
+    .solo-goal span { color: var(--muted); font-size: .82rem; }
+    .solo-goal-score { color: var(--green); font: 900 1.6rem "Arial Rounded MT Bold", "Avenir Next", sans-serif; white-space: nowrap; }
+    .solo-goal-score b { color: inherit; font-size: inherit; }
+    .solo-goal-score small { color: var(--muted); font-size: .8rem; }
+    .solo-goal-track { grid-column: 1 / -1; height: 8px; border-radius: 99px; background: #cfe9d9; overflow: hidden; }
+    .solo-goal-fill { display: block; height: 100%; border-radius: inherit; background: var(--green); transition: width .25s ease; }
+    .solo-goal.reached { border-color: #d5b94f; border-left-color: #c99b1c; background: linear-gradient(105deg, #fff7d8, #fffdf3); }
+    .solo-goal.reached .solo-goal-score, .solo-goal.reached p { color: #8b6710; }
+    .solo-goal.reached .solo-goal-fill { background: #c99b1c; }
 
     .game-grid { display: grid; grid-template-columns: minmax(0,1fr) 350px; gap: 18px; align-items: start; }
     .game-main { min-width: 0; }
@@ -98,16 +111,14 @@
     .card-row { display: flex; gap: 9px; min-height: 180px; overflow-x: auto; overflow-y: hidden; padding: 2px 2px 8px; scrollbar-width: thin; scroll-snap-type: x proximity; }
     .empty-lane { width: 100%; min-height: 164px; display: grid; place-items: center; text-align: center; color: var(--muted); border: 2px dashed rgba(23,37,34,.16); border-radius: 16px; background: rgba(255,255,255,.32); }
     .empty-lane strong { display: block; color: var(--ink); margin-bottom: 4px; }
-    .org-card { flex: 0 0 154px; min-height: 164px; scroll-snap-align: start; position: relative; display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid rgba(23,37,34,.15); border-top: 5px solid var(--lane); border-radius: 14px; background: rgba(255,255,255,.9); box-shadow: 0 6px 16px rgba(22,63,51,.08); }
+    .org-card { flex: 0 0 154px; min-height: 224px; scroll-snap-align: start; position: relative; display: flex; flex-direction: column; gap: 5px; padding: 8px; border: 1px solid rgba(23,37,34,.15); border-top: 5px solid var(--lane); border-radius: 14px; background: rgba(255,255,255,.9); box-shadow: 0 6px 16px rgba(22,63,51,.08); }
     .org-card.flash { animation: card-run .62s ease both; }
     .org-card-head { display: flex; justify-content: space-between; gap: 5px; align-items: start; }
     .org-icon { font-size: 1.45rem; line-height: 1; }
     .org-kind { color: var(--muted); font: 800 .64rem ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .05em; text-transform: uppercase; }
     .org-name { font-weight: 900; line-height: 1.08; }
     .org-version { color: var(--muted); font: 700 .62rem ui-monospace, SFMono-Regular, Menlo, monospace; line-height: 1.2; }
-    .org-art { width: 44px; height: 58px; object-fit: cover; border-radius: 7px; border: 1px solid rgba(23,37,34,.13); box-shadow: 0 3px 8px rgba(22,63,51,.12); }
-    .org-effect { padding: 7px 6px; border-radius: 8px; background: color-mix(in srgb, var(--lane) 15%, white); font: 800 .75rem ui-monospace, SFMono-Regular, Menlo, monospace; line-height: 1.35; }
-    .org-learn { margin-top: auto; color: var(--muted); font-size: .72rem; line-height: 1.3; }
+    .org-art { width: 100%; aspect-ratio: 1040 / 1400; object-fit: contain; border-radius: 7px; border: 1px solid rgba(23,37,34,.13); box-shadow: 0 3px 8px rgba(22,63,51,.12); }
     .activate-row { width: 100%; min-height: 40px; margin-top: 3px; border: 0; border-radius: 11px; background: var(--lane); color: #172522; cursor: pointer; font-weight: 900; }
     .pathway[data-row="protein"] .activate-row { color: white; }
     .activate-row:disabled { opacity: .34; cursor: not-allowed; }
@@ -125,24 +136,31 @@
     .resource-value { display: block; margin-top: 2px; font: 900 1rem ui-monospace, SFMono-Regular, Menlo, monospace; }
     .resource-value small { color: var(--muted); font-size: .65rem; }
     .hand { display: grid; gap: 7px; max-height: 460px; overflow: auto; padding-right: 2px; }
-    .hand-card { width: 100%; border: 1px solid var(--line); border-left: 5px solid var(--lane); border-radius: 12px; background: white; color: var(--ink); padding: 9px 10px; cursor: pointer; text-align: left; }
-    .hand-card:hover:not(:disabled) { border-color: var(--lane); transform: translateY(-1px); box-shadow: 0 7px 16px rgba(22,63,51,.09); }
-    .hand-card:disabled { opacity: .48; cursor: not-allowed; }
+    .hand-card { display: grid; grid-template-columns: 82px minmax(0,1fr); align-items: start; gap: 10px; width: 100%; border: 1px solid var(--line); border-left: 5px solid var(--lane); border-radius: 12px; background: white; color: var(--ink); padding: 8px; }
+    .hand-card:hover, .hand-card:focus-within { border-color: var(--lane); box-shadow: 0 7px 16px rgba(22,63,51,.09); }
+    .hand-card-copy { min-width: 0; }
     .hand-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .hand-card-name { font-weight: 900; }
     .hand-card-kind { color: var(--muted); font: 800 .64rem ui-monospace, SFMono-Regular, Menlo, monospace; text-transform: uppercase; }
     .hand-card-version { margin-top: 3px; color: var(--muted); font: 700 .63rem ui-monospace, SFMono-Regular, Menlo, monospace; }
-    .hand-card-art { width: 38px; height: 51px; flex: 0 0 auto; object-fit: cover; border-radius: 6px; border: 1px solid rgba(23,37,34,.13); }
-    .hand-card-effect { margin-top: 4px; color: var(--muted); font-size: .76rem; line-height: 1.3; }
+    .hand-card-art { width: 100%; aspect-ratio: 1040 / 1400; object-fit: contain; border-radius: 6px; border: 1px solid rgba(23,37,34,.13); }
+    .hand-card-effect { display: -webkit-box; margin: 5px 0; color: var(--muted); font-size: .75rem; line-height: 1.3; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
     .hand-card-bottom { display: flex; justify-content: space-between; gap: 8px; align-items: end; margin-top: 6px; }
+    .hand-card-play { min-height: 32px; max-width: 62%; padding: 4px 8px; border: 1px solid var(--green); border-radius: 8px; background: var(--green); color: white; cursor: pointer; font-size: .7rem; font-weight: 800; text-align: center; }
+    .hand-card-play:disabled { border-color: var(--line); background: #f2f7f5; color: var(--muted); cursor: not-allowed; }
+    .card-art-trigger { display: block; width: 100%; padding: 0; border: 0; border-radius: 7px; background: transparent; cursor: zoom-in; line-height: 0; }
+    .card-art-trigger:hover, .card-art-trigger:focus-visible { outline: 3px solid rgba(55,125,161,.4); outline-offset: 2px; }
+    .card-art-trigger img { display: block; }
+    .card-preview-hint { margin: 7px 2px 0; color: var(--muted); font-size: .72rem; }
     .cost { font: 800 .72rem ui-monospace, SFMono-Regular, Menlo, monospace; }
-    .card-status { max-width: 55%; color: var(--muted); font-size: .68rem; text-align: right; }
     .build-footer, .need-footer { display: flex; gap: 8px; margin-top: 9px; }
     .build-footer button, .need-footer button { flex: 1; }
     .choice-box { margin-top: 9px; padding: 10px; border-radius: 12px; background: var(--violet-soft); border: 1px solid #d9d0ff; }
     .choice-box strong { display: block; color: #4f3e9b; margin-bottom: 7px; }
     .choice-options { display: grid; gap: 6px; }
-    .choice-options button { min-height: 38px; border: 1px solid #c9bcff; border-radius: 9px; background: white; color: var(--ink); cursor: pointer; text-align: left; padding: 0 9px; }
+    .choice-option { display: grid; grid-template-columns: 52px minmax(0,1fr); align-items: center; gap: 8px; }
+    .choice-option img { width: 52px; aspect-ratio: 1040 / 1400; object-fit: contain; border-radius: 6px; }
+    .choice-options [data-choice-index] { min-height: 52px; border: 1px solid #c9bcff; border-radius: 9px; background: white; color: var(--ink); cursor: pointer; text-align: left; padding: 0 9px; }
     .needs { display: grid; gap: 7px; }
     .need-card { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; align-items: center; padding: 10px; border-radius: 12px; background: #f7faf9; border: 1px solid #dce7e3; }
     .need-card.ready { border-color: var(--green-2); background: var(--green-soft); }
@@ -168,6 +186,16 @@
     .count-pick span { font-weight: 800; margin-right: 4px; }
     .count-btn { width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 12px; background: white; color: var(--ink); cursor: pointer; font-weight: 900; }
     .count-btn.active { background: var(--green); color: white; border-color: var(--green); }
+    .solo-goal-setup { margin: 14px 0; padding: 14px; border: 1px solid #a9d8bb; border-radius: 15px; background: #eef9f2; }
+    .solo-goal-setup > strong { display: block; color: var(--green); }
+    .solo-goal-setup > p { margin: 4px 0 11px; color: var(--muted); font-size: .84rem; }
+    .solo-targets { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
+    .solo-target { padding: 9px 6px; border: 1px solid #badcca; border-radius: 10px; background: white; color: var(--ink); cursor: pointer; }
+    .solo-target strong, .solo-target span { display: block; }
+    .solo-target strong { font-size: 1.1rem; }
+    .solo-target span { color: var(--muted); font-size: .74rem; }
+    .solo-target.active { border-color: var(--green); background: var(--green); color: white; }
+    .solo-target.active span { color: rgba(255,255,255,.78); }
     .name-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
     .name-field label { display: block; color: var(--muted); font-size: .78rem; font-weight: 800; margin-bottom: 5px; }
     .name-field input { width: 100%; min-height: 46px; border: 1px solid var(--line); border-radius: 11px; padding: 0 12px; color: var(--ink); background: #f8fbfa; }
@@ -206,7 +234,8 @@
     .catalog-card { padding: 10px; border: 1px solid var(--line); border-left: 5px solid var(--lane,var(--green)); border-radius: 12px; background: #fbfdfc; }
     .catalog-card-top { display: flex; justify-content: space-between; gap: 8px; align-items: start; }
     .catalog-card-head { display: flex; gap: 9px; align-items: center; min-width: 0; }
-    .catalog-art { width: 52px; height: 70px; flex: 0 0 auto; object-fit: cover; border-radius: 7px; border: 1px solid rgba(23,37,34,.13); box-shadow: 0 4px 9px rgba(22,63,51,.1); }
+    .catalog-art-trigger { width: 92px; flex: 0 0 92px; }
+    .catalog-art { width: 100%; aspect-ratio: 1040 / 1400; object-fit: contain; border-radius: 7px; border: 1px solid rgba(23,37,34,.13); box-shadow: 0 4px 9px rgba(22,63,51,.1); }
     .catalog-card strong { line-height: 1.15; }
     .catalog-meta { color: var(--muted); font: 800 .65rem ui-monospace, SFMono-Regular, Menlo, monospace; text-transform: uppercase; }
     .catalog-card p { margin: 5px 0 0; color: var(--muted); font-size: .76rem; line-height: 1.35; }
@@ -234,6 +263,20 @@
     .result-score { text-align: right; }
     .result-score strong { display: block; }
     .result-score span { color: var(--muted); font-size: .72rem; }
+    .solo-result { padding: 18px; border: 1px solid #a9d8bb; border-radius: 15px; background: #eef9f2; }
+    .solo-result.fail { border-color: #e6c2b8; background: #fff2ed; }
+    .solo-result strong { display: block; font-size: 1.2rem; }
+    .solo-result p { margin: 7px 0 0; color: var(--muted); }
+    .card-preview { position: fixed; inset: auto; width: min(340px,calc(100vw - 24px)); max-height: calc(100vh - 24px); margin: 0; padding: 10px; overflow: auto; border: 1px solid #b4cbc1; border-radius: 15px; background: white; box-shadow: 0 24px 60px rgba(11,39,30,.3); color: var(--ink); }
+    .card-preview::backdrop { background: transparent; }
+    .card-preview[data-pinned="true"]::backdrop { background: rgba(9,29,24,.58); }
+    .card-preview-art { display: block; width: min(100%, 300px); max-height: min(60vh, 420px); margin: 0 auto; object-fit: contain; border-radius: 9px; box-shadow: 0 4px 14px rgba(18,45,36,.16); }
+    .card-preview-copy { padding: 9px 4px 3px; }
+    .card-preview-copy strong { display: block; font-size: 1rem; line-height: 1.2; }
+    .card-preview-copy span { display: block; margin-top: 3px; color: var(--muted); font: 800 .68rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .card-preview-copy p { margin: 8px 0 0; color: var(--muted); font-size: .8rem; line-height: 1.35; }
+    .card-preview-close { position: absolute; top: 13px; right: 13px; width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 9px; background: rgba(255,255,255,.94); color: var(--ink); cursor: pointer; font-size: 1.25rem; line-height: 1; }
+    .card-preview[data-pinned="false"] .card-preview-close { display: none; }
 
     @keyframes beam { 0% { opacity: 0; transform: translateX(-80px) skewX(-10deg); } 12% { opacity: 1; } 86% { opacity: 1; } 100% { opacity: 0; transform: translateX(calc(100vw - 100px)) skewX(-10deg); } }
     @keyframes card-run { 0%,100% { transform: translateY(0); } 45% { transform: translateY(-7px); box-shadow: 0 14px 25px rgba(22,63,51,.17); } }
@@ -248,19 +291,29 @@
     <section class="setup-card" aria-labelledby="setupTitle">
       <p class="setup-kicker">Plant cell engine game</p>
       <h1 id="setupTitle">Cellworks</h1>
-      <p>2–4 人轮流构建自己的植物细胞。BUILD 扩展三条细胞引擎，ACTIVATE 让营养物穿过细胞膜并从左到右运行整行。</p>
+      <p>构建自己的植物细胞。单人挑战在 4 轮内达到目标分数；多人模式轮流 BUILD、ACTIVATE，运行三条细胞引擎。</p>
       <div class="count-pick" role="group" aria-label="玩家人数">
         <span>玩家人数</span>
+        <button class="count-btn" data-count="1" type="button">1</button>
         <button class="count-btn active" data-count="2" type="button">2</button>
         <button class="count-btn" data-count="3" type="button">3</button>
         <button class="count-btn" data-count="4" type="button">4</button>
       </div>
       <div id="nameFields" class="name-fields"></div>
+      <div id="soloGoalSetup" class="solo-goal-setup" hidden>
+        <strong>🌱 单人目标 · 四轮成长</strong>
+        <p>完成 Cell Needs 获得 Growth。第 4 轮结束时达到所选门槛即挑战成功。</p>
+        <div class="solo-targets" role="group" aria-label="目标分数">
+          <button class="solo-target" data-solo-target="3" aria-pressed="false" type="button"><strong>3 Growth</strong><span>入门</span></button>
+          <button class="solo-target active" data-solo-target="6" aria-pressed="true" type="button"><strong>6 Growth</strong><span>标准</span></button>
+          <button class="solo-target" data-solo-target="9" aria-pressed="false" type="button"><strong>9 Growth</strong><span>挑战</span></button>
+        </div>
+      </div>
       <div class="setup-actions">
-        <small>同屏传递设备 · 每人每轮 4 次行动 · 共 4 轮 · Excel 牌库 50 张</small>
+        <small id="setupSummary">同屏传递设备 · 每人每轮 4 次行动 · 共 4 轮 · Excel 牌库 50 张</small>
         <button id="startGameBtn" class="primary-btn" type="button">开始游戏</button>
       </div>
-      <div class="online-entry">
+      <div id="onlineEntry" class="online-entry">
         <div><strong>跨设备多人 · 无需登录</strong><span>创建房间后复制分享链接，朋友点开链接就能加入，不需要手动填写房间号码。</span></div>
         <div class="online-actions"><button id="createRoomBtn" class="ghost-btn" type="button">创建线上房间</button><button id="joinRoomBtn" class="ghost-btn" type="button">加入房间</button></div>
       </div>
@@ -284,6 +337,7 @@
     </header>
 
     <section id="scoreboard" class="scoreboard" aria-label="玩家得分"></section>
+    <section id="soloGoalCard" class="solo-goal" aria-label="单人目标进度" hidden><div><p>Solo goal · 四轮成长</p><strong id="soloGoalTitle">达到 6 Growth</strong><span id="soloGoalHelp">完成 Cell Needs 来获得分数</span></div><div class="solo-goal-score"><b id="soloGoalScore">0</b><small id="soloGoalTarget"> / 6</small></div><div class="solo-goal-track" role="progressbar" aria-label="目标分数进度" aria-valuemin="0" aria-valuenow="0" aria-valuemax="6"><span id="soloGoalFill" class="solo-goal-fill" style="width:0%"></span></div></section>
 
     <div class="game-grid">
       <div class="game-main">
@@ -302,14 +356,14 @@
 
       <aside class="sidebar">
         <section class="side-card"><div class="side-title"><h2>Cell resources</h2><span id="resourceOwner">玩家 1</span></div><div id="resources" class="resources"></div></section>
-        <section class="side-card"><div class="side-title"><h2>Blueprint hand</h2><span id="handCount">0 张</span></div><div id="hand" class="hand"></div><div id="choiceBox" class="choice-box" hidden></div><div class="build-footer"><button id="finishBuildBtn" class="primary-btn" type="button" disabled>结束 BUILD</button></div></section>
+        <section class="side-card"><div class="side-title"><h2>Blueprint hand</h2><span id="handCount">0 张</span></div><div id="hand" class="hand"></div><p class="card-preview-hint">悬停或点按卡面查看完整内容</p><div id="choiceBox" class="choice-box" hidden></div><div class="build-footer"><button id="finishBuildBtn" class="primary-btn" type="button" disabled>结束 BUILD</button></div></section>
         <section class="side-card"><div class="side-title"><h2>Cell Needs</h2><span>公共目标 · 3 张</span></div><div id="needs" class="needs"></div><div id="needFooter" class="need-footer" hidden><button id="skipNeedBtn" class="ghost-btn" type="button">跳过目标并结束回合</button></div></section>
       </aside>
     </div>
   </main>
 
   <dialog id="rulesDialog">
-    <div class="dialog-inner"><div class="dialog-head"><h2>快速规则</h2><button class="icon-btn" data-close-dialog="rulesDialog" type="button" aria-label="关闭">×</button></div><div class="rules-grid"><div class="rule"><strong>每回合二选一</strong><span>BUILD 可以连续打任意张付得起的手牌；ACTIVATE 输入 1 个基础营养，再选择一整行从左到右运行。</span></div><div class="rule"><strong>资源的来源</strong><span>Water、CO₂、Amino acids 从外界经 Cell Membrane 进入；Glucose、Energy、Protein 必须由细胞内部制造。</span></div><div class="rule"><strong>三种卡牌标签</strong><span>↻ MULTIPLE 可以重复建造。◆ CORE 和 ⬆ UPGRADE 每个细胞最多一张。每张牌的版本名与功能来自 Excel 图鉴。</span></div><div class="rule"><strong>完成 Cell Need</strong><span>ACTIVATE 后可以完成最多 1 张公共目标，不额外消耗行动。完成后立刻补出新的目标。</span></div><div class="rule"><strong>四轮游戏</strong><span>每位玩家每轮有 4 个 Action Tokens。所有玩家用完后进入下一轮，第 4 轮结束后比较 Growth。</span></div><div class="rule"><strong>胜负</strong><span>Growth 最高者获胜。平局依次比较 Finished Protein、已建成的 organelle 数量。</span></div></div></div>
+    <div class="dialog-inner"><div class="dialog-head"><h2>快速规则</h2><button class="icon-btn" data-close-dialog="rulesDialog" type="button" aria-label="关闭">×</button></div><div class="rules-grid"><div class="rule"><strong>每回合二选一</strong><span>BUILD 可以连续打任意张付得起的手牌；ACTIVATE 输入 1 个基础营养，再选择一整行从左到右运行。</span></div><div class="rule"><strong>资源的来源</strong><span>Water、CO₂、Amino acids 从外界经 Cell Membrane 进入；Glucose、Energy、Protein 必须由细胞内部制造。</span></div><div class="rule"><strong>三种卡牌标签</strong><span>↻ MULTIPLE 可以重复建造。◆ CORE 和 ⬆ UPGRADE 每个细胞最多一张。每张牌的版本名与功能来自 Excel 图鉴。</span></div><div class="rule"><strong>完成 Cell Need</strong><span>ACTIVATE 后可以完成最多 1 张公共目标，不额外消耗行动。完成后立刻补出新的目标。</span></div><div class="rule"><strong>四轮游戏</strong><span>每位玩家每轮有 4 个 Action Tokens。所有玩家用完后进入下一轮，第 4 轮结束后结算。</span></div><div class="rule"><strong>单人目标</strong><span>开局选 3、6 或 9 Growth 门槛。第 4 轮结束时达到目标即挑战成功；提前达到也继续玩完四轮。</span></div><div class="rule"><strong>多人胜负</strong><span>Growth 最高者获胜。平局依次比较 Finished Protein、已建成的 organelle 数量。</span></div></div></div>
   </dialog>
 
   <dialog id="roomDialog">
@@ -321,8 +375,14 @@
   </dialog>
 
   <dialog id="resultsDialog">
-    <div class="dialog-inner"><div class="dialog-head"><div><p class="setup-kicker">Four rounds complete</p><h2 id="winnerTitle">游戏结束</h2></div></div><div id="results" class="results"></div><button id="playAgainBtn" class="primary-btn" type="button">再玩一局</button></div>
+    <div class="dialog-inner"><div class="dialog-head"><div><p id="resultsKicker" class="setup-kicker">Four rounds complete</p><h2 id="winnerTitle">游戏结束</h2></div></div><div id="results" class="results"></div><button id="playAgainBtn" class="primary-btn" type="button">再玩一局</button></div>
   </dialog>
+
+  <div id="cardPreview" class="card-preview" popover="manual" role="dialog" aria-label="卡牌放大预览" data-pinned="false">
+    <button id="cardPreviewClose" class="card-preview-close" type="button" aria-label="关闭卡牌预览">×</button>
+    <img id="cardPreviewArt" class="card-preview-art" alt="">
+    <div class="card-preview-copy"><strong id="cardPreviewName"></strong><span id="cardPreviewMeta"></span><p id="cardPreviewEffect"></p><p id="cardPreviewLearn"></p></div>
+  </div>
 
   <script src="room.js?v=5"></script>
   <script src="card-data.js"></script>
@@ -375,6 +435,7 @@
       };
       const PLAYER_COLORS = ['#0b6e4f','#7763c5','#d75c48','#377da1'];
       let setupCount = 2;
+      let soloTarget = 6;
       let state = null;
       let currentPlayerIndex = 0;
       let firstPlayerIndex = 0;
@@ -429,8 +490,8 @@
         return result;
       };
       const currentPlayer = () => state.players[currentPlayerIndex];
-      const displayPlayer = () => state?.players?.[network.localPlayerIndex] || currentPlayer();
       const isOnline = () => network.role !== 'local';
+      const displayPlayer = () => isOnline() ? state.players[network.localPlayerIndex] : currentPlayer();
       const isLocalTurn = () => !isOnline() || network.localPlayerIndex === currentPlayerIndex;
       const allBuilt = player => Object.values(player.board).flat();
       const hasBuilt = (player, key) => allBuilt(player).some(id => id === key || CARD_DEFS[id]?.group === key);
@@ -446,9 +507,66 @@
       const cardImage = card => `card-fronts/${encodeURIComponent(CARD_ART_BY_VERSION.get(card?.version) || card?.id || '')}.png`;
       const cardCopies = card => CARD_CATALOG.filter(source => source.version === card?.version).length || 1;
       const addLog = text => { activity.unshift({ player: currentPlayer().name, text }); activity = activity.slice(0, 4); };
+      let previewPinned = false;
+      let previewOrigin = null;
+      let restoringPreviewFocus = false;
+      let focusingFromTouch = false;
+
+      function hideCardPreview(restoreFocus = false) {
+        const preview = $('cardPreview');
+        if (preview.matches(':popover-open')) preview.hidePopover();
+        previewPinned = false;
+        preview.dataset.pinned = 'false';
+        const origin = previewOrigin;
+        previewOrigin = null;
+        if (restoreFocus && origin?.isConnected) {
+          restoringPreviewFocus = true;
+          origin.focus({ preventScroll: true });
+          restoringPreviewFocus = false;
+        }
+      }
+
+      function showCardPreview(source, cardId, pin = false) {
+        const card = CARD_DEFS[cardId];
+        if (!card) return;
+        if (previewPinned && !pin) return;
+        const preview = $('cardPreview');
+        const container = source.closest('dialog') || document.body;
+        if (preview.parentElement !== container) { hideCardPreview(); container.appendChild(preview); }
+        previewPinned = pin;
+        previewOrigin = source;
+        preview.dataset.pinned = String(pin);
+        preview.setAttribute('aria-label', `${card.name} 卡牌放大预览`);
+        $('cardPreviewArt').src = cardImage(card);
+        $('cardPreviewArt').alt = `${card.name} · ${card.version} 完整卡面`;
+        $('cardPreviewName').textContent = `${card.icon} ${card.name}`;
+        $('cardPreviewMeta').textContent = `${card.version} · ${card.id} · Build ${buildCostText(card)}`;
+        $('cardPreviewEffect').textContent = card.effect;
+        $('cardPreviewLearn').textContent = card.learn;
+        if (!preview.matches(':popover-open')) preview.showPopover();
+        if (pin || window.innerWidth < 700) {
+          preview.style.left = '50%';
+          preview.style.top = '50%';
+          preview.style.transform = 'translate(-50%, -50%)';
+          $('cardPreviewClose').focus();
+        } else {
+          preview.style.transform = 'none';
+          const sourceRect = source.getBoundingClientRect();
+          const previewRect = preview.getBoundingClientRect();
+          const gap = 12;
+          const spaceRight = window.innerWidth - sourceRect.right;
+          const left = spaceRight >= previewRect.width + gap ? sourceRect.right + gap : sourceRect.left - previewRect.width - gap;
+          preview.style.left = `${Math.max(gap, Math.min(left, window.innerWidth - previewRect.width - gap))}px`;
+          preview.style.top = `${Math.max(gap, Math.min(sourceRect.top, window.innerHeight - previewRect.height - gap))}px`;
+        }
+      }
 
       function renderNameFields() {
-        $('nameFields').innerHTML = Array.from({ length: setupCount }, (_, index) => `<div class="name-field"><label for="playerName${index}">玩家 ${index + 1}</label><input id="playerName${index}" maxlength="16" value="玩家 ${index + 1}" autocomplete="off"></div>`).join('');
+        $('nameFields').innerHTML = Array.from({ length: setupCount }, (_, index) => `<div class="name-field"><label for="playerName${index}">${setupCount === 1 ? '你的名字' : `玩家 ${index + 1}`}</label><input id="playerName${index}" maxlength="16" value="${setupCount === 1 ? '玩家' : `玩家 ${index + 1}`}" autocomplete="off"></div>`).join('');
+        $('soloGoalSetup').hidden = setupCount !== 1;
+        $('onlineEntry').hidden = setupCount === 1;
+        $('setupSummary').textContent = setupCount === 1 ? '每轮 4 次行动 · 共 4 轮 · 达到目标 Growth 即成功' : '同屏传递设备 · 每人每轮 4 次行动 · 共 4 轮 · Excel 牌库 50 张';
+        $('startGameBtn').textContent = setupCount === 1 ? '开始单人挑战' : '开始游戏';
       }
 
       function makeDeck(playerCount) {
@@ -473,9 +591,11 @@
         };
       }
 
-      function startGame(names) {
-        if (!Array.isArray(names) || names.length < 2 || names.length > 4) throw new Error('游戏需要 2–4 位玩家。');
-        state = { round: 1, players: names.map((name,index) => makePlayer((String(name).trim() || `玩家 ${index + 1}`).slice(0,16),index)), deck: makeDeck(names.length), discard: [], needs: ['grow','repair','produce'], needDeck: shuffle(['grow','repair','produce','grow','repair','produce']), gameOver: false };
+      function startGame(names, target = soloTarget) {
+        if (!Array.isArray(names) || names.length < 1 || names.length > 4 || (isOnline() && names.length < 2)) throw new Error('游戏需要 1–4 位玩家，线上房间至少需要 2 位。');
+        const isSolo = names.length === 1;
+        state = { mode: isSolo ? 'solo' : 'multiplayer', soloTarget: isSolo && [3,6,9].includes(target) ? target : null, round: 1, players: names.map((name,index) => makePlayer((String(name).trim() || `玩家 ${index + 1}`).slice(0,16),index)), deck: makeDeck(names.length), discard: [], needs: ['grow','repair','produce'], needDeck: shuffle(['grow','repair','produce','grow','repair','produce']), gameOver: false };
+        if (isSolo && state.soloTarget === null) state.soloTarget = 6;
         state.players.forEach(player => { if (state.deck.length) player.hand.push(state.deck.shift()); });
         currentPlayerIndex = 0; firstPlayerIndex = 0; phase = 'choose'; builtThisAction = 0; selectedIntake = null; choiceCards = []; activity = []; flashRow = null;
         network.started = true;
@@ -1065,7 +1185,7 @@
 
       function showPass(newRound) {
         const player = currentPlayer();
-        if (isOnline()) { $('passScreen').hidden = true; return; }
+        if (isOnline() || state.mode === 'solo') { $('passScreen').hidden = true; return; }
         $('passEyebrow').textContent = newRound ? `第 ${state.round} 轮开始 · 请把设备交给` : '请把设备交给';
         $('passName').textContent = player.name;
         $('passScreen').style.setProperty('--next-color',player.color);
@@ -1073,6 +1193,17 @@
       }
 
       function showResults() {
+        if (state.mode === 'solo') {
+          const player = state.players[0];
+          const reached = player.growth >= state.soloTarget;
+          $('resultsKicker').textContent = 'Solo goal · 四轮结束';
+          $('winnerTitle').textContent = reached ? '单人挑战成功' : '单人挑战未达成';
+          const outcome = reached ? player.growth === state.soloTarget ? '刚好达到目标。' : `超过目标 ${player.growth - state.soloTarget} 分。` : `距离目标还差 ${state.soloTarget - player.growth} 分。`;
+          $('results').innerHTML = `<div class="solo-result${reached ? '' : ' fail'}"><strong>${escapeHtml(player.name)} · ${player.growth} / ${state.soloTarget} Growth</strong><p>${outcome}本局完成 ${player.completedNeeds} 张 Cell Need，建造 ${allBuilt(player).length} 张 organelle。</p></div>`;
+          $('resultsDialog').showModal();
+          return;
+        }
+        $('resultsKicker').textContent = 'Four rounds complete';
         const ranked = [...state.players].sort((a,b) => b.growth - a.growth || b.resources.finished - a.resources.finished || allBuilt(b).length - allBuilt(a).length);
         const top = ranked[0];
         const tied = ranked.filter(player => player.growth === top.growth && player.resources.finished === top.resources.finished && allBuilt(player).length === allBuilt(top).length);
@@ -1084,6 +1215,7 @@
       function escapeHtml(value) { const node = document.createElement('span'); node.textContent = String(value); return node.innerHTML; }
 
       function renderCatalog(mode = 'organelles') {
+        hideCardPreview();
         document.querySelectorAll('[data-catalog-tab]').forEach(button => button.classList.toggle('active', button.dataset.catalogTab === mode));
         if (mode === 'goals') {
           $('catalogCards').innerHTML = GOAL_CATALOG.map(goal => `<article class="catalog-card" style="--lane:var(--violet)"><div class="catalog-card-top"><strong>${escapeHtml(goal.name || goal.id)}</strong><span class="catalog-meta">${escapeHtml(goal.id)} · ${escapeHtml(goal.phase || '')}</span></div><p><strong>Score based on</strong> ${escapeHtml(goal.scoreBasedOn || '—')}</p><p><strong>Scoring</strong> ${escapeHtml(goal.scoringMethod || '—')}</p><p>${escapeHtml(goal.basis || goal.encourages || '')}</p></article>`).join('');
@@ -1093,19 +1225,76 @@
         const unique = [];
         const seen = new Set();
         CARD_CATALOG.forEach(source => { if (!seen.has(source.version)) { seen.add(source.version); unique.push(CARD_DEFS[source.id]); } });
-        $('catalogCards').innerHTML = unique.map(card => `<article class="catalog-card" style="--lane:${PATHS.find(path => path.id === card.row)?.color || 'var(--green)'}"><div class="catalog-card-top"><div class="catalog-card-head"><img class="catalog-art" src="${cardImage(card)}" alt="${escapeHtml(card.name)} card front" loading="lazy"><div><strong>${escapeHtml(card.icon)} ${escapeHtml(card.name)}</strong><p><strong>${escapeHtml(card.version)}</strong> · ${escapeHtml(card.row)} row</p></div></div><span class="catalog-meta">${escapeHtml(card.id)} · ${escapeHtml(kindText(card))}</span></div><p>${escapeHtml(card.effect)}</p><p>${escapeHtml(card.learn)}</p><span class="cost">Build ${escapeHtml(buildCostText(card))} · ${cardCopies(card)} 张</span><p>Prerequisite: ${escapeHtml(card.prerequisite || 'None')}</p></article>`).join('');
+        $('catalogCards').innerHTML = unique.map(card => `<article class="catalog-card" data-preview-id="${card.id}" style="--lane:${PATHS.find(path => path.id === card.row)?.color || 'var(--green)'}"><div class="catalog-card-top"><div class="catalog-card-head"><button class="card-art-trigger catalog-art-trigger" data-preview-open="${card.id}" type="button" aria-label="放大查看 ${escapeHtml(card.name)} 卡面"><img class="catalog-art" src="${cardImage(card)}" alt="" loading="lazy"></button><div><strong>${escapeHtml(card.icon)} ${escapeHtml(card.name)}</strong><p><strong>${escapeHtml(card.version)}</strong> · ${escapeHtml(card.row)} row</p></div></div><span class="catalog-meta">${escapeHtml(card.id)} · ${escapeHtml(kindText(card))}</span></div><p>${escapeHtml(card.effect)}</p><p>${escapeHtml(card.learn)}</p><span class="cost">Build ${escapeHtml(buildCostText(card))} · ${cardCopies(card)} 张</span><p>Prerequisite: ${escapeHtml(card.prerequisite || 'None')}</p></article>`).join('');
         $('catalogFoot').textContent = `${window.CELLWORKS_CATALOG_META?.physicalCardCount || CARD_CATALOG.length} 张实体牌 · ${unique.length} 个版本。牌库会把 Excel 中的实体牌逐张加入。`;
       }
 
+      document.addEventListener('pointerdown', event => { focusingFromTouch = event.pointerType === 'touch'; });
+      document.addEventListener('pointerover', event => {
+        if (event.pointerType === 'touch') return;
+        const source = event.target.closest('[data-preview-id]');
+        if (source && !source.contains(event.relatedTarget)) showCardPreview(source, source.dataset.previewId);
+      });
+      document.addEventListener('pointerout', event => {
+        const source = event.target.closest('[data-preview-id]');
+        if (source && !source.contains(event.relatedTarget) && !previewPinned) hideCardPreview();
+      });
+      document.addEventListener('focusin', event => {
+        if (restoringPreviewFocus || focusingFromTouch) return;
+        const source = event.target.closest('[data-preview-id]');
+        if (source) showCardPreview(source, source.dataset.previewId);
+      });
+      document.addEventListener('focusout', event => {
+        const source = event.target.closest('[data-preview-id]');
+        if (source && !source.contains(event.relatedTarget) && !previewPinned) hideCardPreview();
+      });
+      document.addEventListener('scroll', () => { if (!previewPinned) hideCardPreview(); }, true);
+      window.addEventListener('resize', () => hideCardPreview());
+      document.addEventListener('keydown', event => {
+        focusingFromTouch = false;
+        if (event.key === 'Escape' && $('cardPreview').matches(':popover-open')) {
+          event.preventDefault();
+          event.stopPropagation();
+          hideCardPreview(previewPinned);
+        }
+      }, true);
+      document.addEventListener('click', event => {
+        if (!previewPinned || $('cardPreview').contains(event.target) || event.target.closest('[data-preview-open]')) return;
+        hideCardPreview();
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }, true);
+      $('cardPreviewClose').addEventListener('click', () => hideCardPreview(true));
+      $('catalogDialog').addEventListener('close', () => hideCardPreview());
+
       function renderScoreboard() {
+        $('scoreboard').classList.toggle('solo', state.mode === 'solo');
         $('scoreboard').innerHTML = state.players.map((player,index) => `<article class="player-chip${index === currentPlayerIndex ? ' active' : ''}" style="--player-color:${player.color}"><div class="player-chip-top"><span class="player-dot"></span><span class="player-chip-name">${escapeHtml(player.name)}</span></div><div class="player-chip-stats"><span><strong>${player.growth}</strong> Growth</span><span><strong>${player.actions}</strong> actions</span></div></article>`).join('');
+      }
+
+      function renderSoloGoal() {
+        const card = $('soloGoalCard');
+        card.hidden = state.mode !== 'solo';
+        if (card.hidden) return;
+        const score = state.players[0].growth;
+        const target = state.soloTarget;
+        const reached = score >= target;
+        card.classList.toggle('reached', reached);
+        $('soloGoalTitle').textContent = `第 4 轮结束时达到 ${target} Growth`;
+        $('soloGoalHelp').textContent = reached ? '目标分数已达到，继续完成本局四轮' : `还差 ${target - score} Growth · 完成 Cell Needs 获得分数`;
+        $('soloGoalScore').textContent = score;
+        $('soloGoalTarget').textContent = ` / ${target}`;
+        $('soloGoalFill').style.width = `${Math.min(100, score / target * 100)}%`;
+        const track = card.querySelector('[role="progressbar"]');
+        track.setAttribute('aria-valuenow', String(Math.min(score, target)));
+        track.setAttribute('aria-valuemax', String(target));
       }
 
       function renderPathways() {
         const player = displayPlayer();
         $('pathways').innerHTML = PATHS.map(path => {
           const cards = player.board[path.id];
-          const rowHtml = cards.length ? cards.map((id,index) => { const card = CARD_DEFS[id]; return `<article class="org-card${flashRow === path.id ? ' flash' : ''}" style="--lane:${path.color};animation-delay:${index * 130}ms"><div class="org-card-head"><span class="org-icon">${card.icon}</span><span class="org-kind">${kindText(card)}</span><img class="org-art" src="${cardImage(card)}" alt="" loading="lazy"></div><div class="org-name">${card.name}</div><div class="org-version">${card.version} · ${card.id}</div><div class="org-effect">${card.effect}</div><div class="org-learn">${card.learn}</div></article>`; }).join('') : '<div class="empty-lane"><div><strong>这条 pathway 还没有卡牌</strong><span>从 Blueprint hand 打出第一张 organelle</span></div></div>';
+          const rowHtml = cards.length ? cards.map((id,index) => { const card = CARD_DEFS[id]; return `<article class="org-card${flashRow === path.id ? ' flash' : ''}" data-preview-id="${id}" style="--lane:${path.color};animation-delay:${index * 130}ms"><button class="card-art-trigger" data-preview-open="${id}" type="button" aria-label="放大查看 ${escapeHtml(card.name)} 卡面"><img class="org-art" src="${cardImage(card)}" alt="" loading="lazy"></button><div class="org-card-head"><span class="org-icon">${card.icon}</span><span class="org-kind">${kindText(card)}</span></div><div class="org-name">${escapeHtml(card.name)}</div><div class="org-version">${escapeHtml(card.version)} · ${id}</div></article>`; }).join('') : '<div class="empty-lane"><div><strong>这条 pathway 还没有卡牌</strong><span>从 Blueprint hand 打出第一张 organelle</span></div></div>';
           const canRun = phase === 'activate' && selectedIntake && cards.length && isLocalTurn();
           return `<section class="pathway${flashRow === path.id ? ' running' : ''}" data-row="${path.id}" style="--lane:${path.color}"><div class="path-label"><strong>${path.name}</strong><span>${path.note}</span></div><div class="path-content"><div class="activation-beam"></div><div class="card-row">${rowHtml}</div><button class="activate-row" data-run-row="${path.id}" type="button" ${canRun ? '' : 'disabled'}>从左到右运行 ${path.name} →</button></div></section>`;
         }).join('');
@@ -1126,12 +1315,12 @@
           const check = buildCheck(player,id);
           const enabled = phase === 'build' && !choiceCards.length && isLocalTurn() && check.ok;
           const status = !isLocalTurn() ? `等待 ${currentPlayer().name}` : phase !== 'build' ? '选择 BUILD' : check.reason;
-          return `<button class="hand-card" style="--lane:${PATHS.find(path => path.id === card.row)?.color || 'var(--green)'}" data-hand-index="${index}" type="button" ${enabled ? '' : 'disabled'}><div class="hand-card-top"><span class="hand-card-name">${card.icon} ${card.name}</span><span class="hand-card-kind">${kindText(card)}</span><img class="hand-card-art" src="${cardImage(card)}" alt="" loading="lazy"></div><div class="hand-card-version">${card.version} · ${card.id} · ${cardCopies(card)} 张</div><div class="hand-card-effect">${card.effect} · ${card.learn}</div><div class="hand-card-bottom"><span class="cost">Build ${buildCostText(card)}</span><span class="card-status">${status}</span></div></button>`;
+          return `<article class="hand-card" data-preview-id="${id}" style="--lane:${PATHS.find(path => path.id === card.row)?.color || 'var(--green)'}"><button class="card-art-trigger" data-preview-open="${id}" type="button" aria-label="放大查看 ${escapeHtml(card.name)} 卡面"><img class="hand-card-art" src="${cardImage(card)}" alt="" loading="lazy"></button><div class="hand-card-copy"><div class="hand-card-top"><span class="hand-card-name">${escapeHtml(card.icon)} ${escapeHtml(card.name)}</span><span class="hand-card-kind">${escapeHtml(kindText(card))}</span></div><div class="hand-card-version">${escapeHtml(card.version)} · ${id}</div><p class="hand-card-effect">${escapeHtml(card.learn)}</p><div class="hand-card-bottom"><span class="cost">Build ${escapeHtml(buildCostText(card))}</span><button class="hand-card-play" data-hand-index="${index}" type="button" ${enabled ? '' : 'disabled'}>${enabled ? '建造' : escapeHtml(status)}</button></div></div></article>`;
         }).join('') : '<div class="empty-lane"><div><strong>手牌已空</strong><span>Nucleus 可以抽取新的 blueprint</span></div></div>';
         $('finishBuildBtn').disabled = phase !== 'build' || !builtThisAction || choiceCards.length || !isLocalTurn();
         $('finishBuildBtn').textContent = `结束 BUILD · 已建 ${builtThisAction} 张`;
         $('choiceBox').hidden = !choiceCards.length;
-        $('choiceBox').innerHTML = choiceCards.length ? `<strong>选择 1 张 blueprint</strong><div class="choice-options">${choiceCards.map((id,index) => `<button data-choice-index="${index}" type="button">${CARD_DEFS[id].icon} ${CARD_DEFS[id].name} · ${CARD_DEFS[id].version} · ${buildCostText(CARD_DEFS[id])}</button>`).join('')}</div>` : '';
+        $('choiceBox').innerHTML = choiceCards.length ? `<strong>选择 1 张 blueprint</strong><div class="choice-options">${choiceCards.map((id,index) => `<div class="choice-option" data-preview-id="${id}"><button class="card-art-trigger" data-preview-open="${id}" type="button" aria-label="放大查看 ${escapeHtml(CARD_DEFS[id].name)} 卡面"><img src="${cardImage(CARD_DEFS[id])}" alt="" loading="lazy"></button><button data-choice-index="${index}" type="button">${escapeHtml(CARD_DEFS[id].icon)} ${escapeHtml(CARD_DEFS[id].name)} · ${escapeHtml(CARD_DEFS[id].version)} · ${escapeHtml(buildCostText(CARD_DEFS[id]))}</button></div>`).join('')}</div>` : '';
       }
 
       function renderNeeds() {
@@ -1155,6 +1344,7 @@
 
       function render() {
         if (!state) return;
+        hideCardPreview();
         $('roundLabel').textContent = `第 ${state.round} 轮`;
         $('roundPips').innerHTML = Array.from({ length: 4 },(_,index) => `<span class="round-pip${index < state.round ? ' done' : ''}"></span>`).join('');
         $('deckLabel').textContent = `牌库 ${state.deck.length} · 弃牌 ${state.discard.length}`;
@@ -1163,21 +1353,21 @@
         $('turnHelp').textContent = !isLocalTurn() ? `等待 ${currentPlayer().name} 完成 ${phase === 'choose' ? '行动' : phase === 'build' ? 'BUILD' : phase === 'activate' ? 'ACTIVATE' : '目标选择'}` : phase === 'choose' ? `剩余 ${currentPlayer().actions} 个 Action Tokens` : phase === 'build' ? '本次 BUILD 可以连续打出多张牌' : phase === 'activate' ? '先选择营养，再运行一整行' : '完成最多 1 张 Cell Need，或跳过';
         document.querySelectorAll('[data-action]').forEach(button => { button.classList.toggle('active',button.dataset.action === phase); button.disabled = phase !== 'choose' || !isLocalTurn(); });
         $('cancelActionBtn').hidden = !['build','activate'].includes(phase) || builtThisAction > 0 || choiceCards.length > 0 || !isLocalTurn();
-        renderScoreboard(); renderPathways(); renderResources(); renderHand(); renderNeeds(); renderIntake(); renderLog(); updateRoomBadge();
+        renderScoreboard(); renderSoloGoal(); renderPathways(); renderResources(); renderHand(); renderNeeds(); renderIntake(); renderLog(); updateRoomBadge();
       }
 
       function publicState() {
         if (!state) return { status: 'setup' };
         const player = currentPlayer();
-        return { status: state.gameOver ? 'complete' : 'playing', round: state.round, currentPlayer: player.name, actionsLeft: player.actions, phase, selectedIntake, resources: { ...player.resources }, hand: [...player.hand], board: JSON.parse(JSON.stringify(player.board)), visibleNeeds: [...state.needs], scores: state.players.map(item => ({ name: item.name, growth: item.growth, actions: item.actions })) };
+        return { status: state.gameOver ? 'complete' : 'playing', mode: state.mode, soloTarget: state.soloTarget, soloGoalReached: state.mode === 'solo' ? player.growth >= state.soloTarget : null, round: state.round, currentPlayer: player.name, actionsLeft: player.actions, phase, selectedIntake, resources: { ...player.resources }, hand: [...player.hand], board: JSON.parse(JSON.stringify(player.board)), visibleNeeds: [...state.needs], scores: state.players.map(item => ({ name: item.name, growth: item.growth, actions: item.actions })) };
       }
 
       function registerWebMcp() {
         const context = document.modelContext;
         if (!context || typeof context.registerTool !== 'function') return;
         const register = tool => { try { Promise.resolve(context.registerTool(tool)).catch(() => {}); } catch (_) {} };
-        register({ name: 'get_cellworks_state', title: 'Read Cellworks game', description: 'Read the current multiplayer game, active player, phase, resources, hand, board and public Cell Needs.', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: false }, execute: () => publicState() });
-        register({ name: 'start_cellworks_game', title: 'Start Cellworks game', description: 'Start a new 2–4 player local multiplayer Cellworks game using the supplied player names.', inputSchema: { type: 'object', properties: { playerNames: { type: 'array', minItems: 2, maxItems: 4, items: { type: 'string', minLength: 1, maxLength: 16 } } }, required: ['playerNames'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: false }, execute: input => { startGame(input.playerNames); return publicState(); } });
+        register({ name: 'get_cellworks_state', title: 'Read Cellworks game', description: 'Read the current solo or multiplayer game, active player, phase, resources, hand, board and public Cell Needs.', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true, untrustedContentHint: false }, execute: () => publicState() });
+        register({ name: 'start_cellworks_game', title: 'Start Cellworks game', description: 'Start a new local game with 1–4 players. For solo play, optionally choose a Growth target of 3, 6 or 9.', inputSchema: { type: 'object', properties: { playerNames: { type: 'array', minItems: 1, maxItems: 4, items: { type: 'string', minLength: 1, maxLength: 16 } }, soloTarget: { type: 'integer', enum: [3,6,9] } }, required: ['playerNames'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: false }, execute: input => { startGame(input.playerNames, input.soloTarget ?? soloTarget); return publicState(); } });
         register({ name: 'choose_cellworks_action', title: 'Choose turn action', description: 'Choose BUILD or ACTIVATE for the current player while the game is waiting for an action.', inputSchema: { type: 'object', properties: { action: { type: 'string', enum: ['build','activate'] } }, required: ['action'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: false }, execute: input => { if (phase !== 'choose') throw new Error('Current turn is not waiting for an action.'); chooseAction(input.action); return publicState(); } });
         register({ name: 'play_cellworks_organelle', title: 'Play organelle card', description: 'Play one named organelle card from the current player hand during BUILD. Call repeatedly to play several cards in the same action.', inputSchema: { type: 'object', properties: { cardId: { type: 'string', enum: Object.keys(CARD_DEFS) } }, required: ['cardId'], additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: false }, execute: input => { const index = currentPlayer().hand.indexOf(input.cardId); if (index < 0 || !playCard(index)) throw new Error('That card cannot be played now.'); return publicState(); } });
         register({ name: 'finish_cellworks_build', title: 'Finish BUILD action', description: 'End the current BUILD after at least one organelle was played and pass play to the next player.', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: { readOnlyHint: false, untrustedContentHint: false }, execute: () => { if (!finishBuild()) throw new Error('BUILD cannot be finished now.'); return publicState(); } });
@@ -1187,8 +1377,12 @@
       }
 
       document.addEventListener('click', event => {
+        const previewButton = event.target.closest('[data-preview-open]');
+        if (previewButton) { showCardPreview(previewButton, previewButton.dataset.previewOpen, true); return; }
         const count = event.target.closest('[data-count]');
         if (count) { setupCount = Number(count.dataset.count); document.querySelectorAll('[data-count]').forEach(button => button.classList.toggle('active',button === count)); renderNameFields(); return; }
+        const soloTargetButton = event.target.closest('[data-solo-target]');
+        if (soloTargetButton) { soloTarget = Number(soloTargetButton.dataset.soloTarget); document.querySelectorAll('[data-solo-target]').forEach(button => { const active = button === soloTargetButton; button.classList.toggle('active', active); button.setAttribute('aria-pressed', String(active)); }); return; }
         const roomAction = event.target.closest('[data-room-action]');
         if (roomAction) {
           const actionName = roomAction.dataset.roomAction;
