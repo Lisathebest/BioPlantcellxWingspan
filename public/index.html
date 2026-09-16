@@ -58,11 +58,17 @@
     .scoreboard.solo { grid-template-columns: 1fr; }
     .player-chip { border: 1px solid var(--line); background: rgba(255,255,255,.7); border-radius: 14px; padding: 10px 12px; min-width: 0; }
     .player-chip.active { border-color: var(--green); background: white; box-shadow: 0 7px 20px rgba(11,110,79,.12); }
+    .scoreboard.online .player-chip { width: 100%; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+    .scoreboard.online .player-chip:hover { background: white; }
+    .scoreboard.online .player-chip.viewing { outline: 2px solid var(--violet); outline-offset: -3px; }
     .player-chip-top { display: flex; align-items: center; gap: 7px; min-width: 0; }
     .player-dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; background: var(--player-color, var(--green)); }
     .player-chip-name { font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .player-chip-tag { margin-left: auto; color: var(--violet); font-size: .68rem; font-weight: 900; white-space: nowrap; }
+    .player-chip.active:not(.viewing) .player-chip-tag { color: var(--green); }
     .player-chip-stats { display: flex; justify-content: space-between; gap: 8px; margin-top: 5px; color: var(--muted); font-size: .84rem; }
     .player-chip-stats strong { color: var(--ink); }
+    .view-hint { margin: -7px 0 12px; color: var(--muted); font-size: .78rem; }
     .solo-goal { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px 18px; align-items: center; margin-bottom: 14px; padding: 14px 18px; border: 1px solid #a9d8bb; border-left: 6px solid var(--green); border-radius: 14px; background: linear-gradient(105deg, #e9f9ef, #f7fcfa); }
     .solo-goal p { margin: 0 0 3px; color: var(--green); font: 900 .69rem ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .1em; text-transform: uppercase; }
     .solo-goal strong { display: block; font-size: 1.04rem; }
@@ -135,6 +141,19 @@
     .resource-name { display: block; color: var(--muted); font-size: .69rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .resource-value { display: block; margin-top: 2px; font: 900 1rem ui-monospace, SFMono-Regular, Menlo, monospace; }
     .resource-value small { color: var(--muted); font-size: .65rem; }
+    .trade-panel { margin-top: 12px; padding: 11px; border: 1px solid #cfe2d9; border-radius: 12px; background: #f4faf7; }
+    .trade-panel summary { cursor: pointer; color: var(--green); font-weight: 850; }
+    .trade-panel p { margin: 7px 0 10px; color: var(--muted); font-size: .76rem; line-height: 1.4; }
+    .trade-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; }
+    .trade-fields label { display: grid; gap: 4px; color: var(--muted); font-size: .72rem; font-weight: 700; }
+    .trade-fields select { width: 100%; min-height: 35px; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--ink); }
+    .trade-inputs { display: flex; gap: 6px; margin: 9px 0; }
+    .trade-inputs select { min-width: 0; flex: 1; }
+    .trade-submit { width: 100%; min-height: 36px; border: 0; border-radius: 9px; background: var(--green); color: white; font-weight: 800; cursor: pointer; }
+    .trade-submit:disabled { opacity: .4; cursor: not-allowed; }
+    .trade-feedback { min-height: 1.1em; color: #a24435; font-size: .73rem; }
+    .org-toggle { width: 100%; margin-top: 6px; padding: 5px; border: 1px solid var(--green); border-radius: 7px; background: #e7f5ee; color: var(--green); font-size: .68rem; font-weight: 800; cursor: pointer; }
+    .org-toggle.off { border-color: var(--line); background: #f2f4f3; color: var(--muted); }
     .hand { display: grid; gap: 7px; max-height: 460px; overflow: auto; padding-right: 2px; }
     .hand-card { display: grid; grid-template-columns: 82px minmax(0,1fr); align-items: start; gap: 10px; width: 100%; border: 1px solid var(--line); border-left: 5px solid var(--lane); border-radius: 12px; background: white; color: var(--ink); padding: 8px; }
     .hand-card:hover, .hand-card:focus-within { border-color: var(--lane); box-shadow: 0 7px 16px rgba(22,63,51,.09); }
@@ -337,12 +356,13 @@
     </header>
 
     <section id="scoreboard" class="scoreboard" aria-label="玩家得分"></section>
+    <p id="viewHint" class="view-hint" hidden>点玩家面板切换细胞视角 · 手牌始终只显示自己的</p>
     <section id="soloGoalCard" class="solo-goal" aria-label="单人目标进度" hidden><div><p>Solo goal · 四轮成长</p><strong id="soloGoalTitle">达到 6 Growth</strong><span id="soloGoalHelp">完成 Cell Needs 来获得分数</span></div><div class="solo-goal-score"><b id="soloGoalScore">0</b><small id="soloGoalTarget"> / 6</small></div><div class="solo-goal-track" role="progressbar" aria-label="目标分数进度" aria-valuemin="0" aria-valuenow="0" aria-valuemax="6"><span id="soloGoalFill" class="solo-goal-fill" style="width:0%"></span></div></section>
 
     <div class="game-grid">
       <div class="game-main">
         <section class="turn-panel">
-          <div class="turn-copy"><p class="eyebrow">当前玩家</p><h1 id="turnTitle" class="turn-title">玩家 1 的细胞</h1><p id="turnHelp" class="turn-help">选择本回合要执行的行动。</p></div>
+          <div class="turn-copy"><p id="turnEyebrow" class="eyebrow">当前玩家</p><h1 id="turnTitle" class="turn-title">玩家 1 的细胞</h1><p id="turnHelp" class="turn-help">选择本回合要执行的行动。</p></div>
           <div class="action-pick"><button class="action-btn" data-action="build" type="button"><strong>🔨 BUILD</strong><span>连续打出手牌</span></button><button class="action-btn" data-action="activate" type="button"><strong>⚙ ACTIVATE</strong><span>输入营养并运行一行</span></button><button id="cancelActionBtn" class="quiet-btn" type="button" hidden>取消选择</button></div>
         </section>
 
@@ -355,15 +375,15 @@
       </div>
 
       <aside class="sidebar">
-        <section class="side-card"><div class="side-title"><h2>Cell resources</h2><span id="resourceOwner">玩家 1</span></div><div id="resources" class="resources"></div></section>
-        <section class="side-card"><div class="side-title"><h2>Blueprint hand</h2><span id="handCount">0 张</span></div><div id="hand" class="hand"></div><p class="card-preview-hint">悬停或点按卡面查看完整内容</p><div id="choiceBox" class="choice-box" hidden></div><div class="build-footer"><button id="finishBuildBtn" class="primary-btn" type="button" disabled>结束 BUILD</button></div></section>
+        <section class="side-card"><div class="side-title"><h2>Cell resources</h2><span id="resourceOwner">玩家 1</span></div><div id="resources" class="resources"></div><details id="tradePanel" class="trade-panel"><summary>↻ 资源兑换 · 不耗行动</summary><p>交出 2 个相同资源，或任意 3 个资源，换取 1 个资源（Protein 除外）。每回合不限次数。</p><div class="trade-fields"><label>兑换方式<select id="tradeMode"><option value="pair">2 个相同</option><option value="three">任意 3 个</option></select></label><label>获得<select id="tradeOutput"></select></label></div><div id="tradeInputs" class="trade-inputs"></div><button id="tradeSubmit" class="trade-submit" type="button">确认兑换</button><div id="tradeFeedback" class="trade-feedback" role="status"></div></details></section>
+        <section class="side-card"><div class="side-title"><h2 id="handTitle">Blueprint hand</h2><span id="handCount">0 张</span></div><div id="hand" class="hand"></div><p class="card-preview-hint">悬停或点按卡面查看完整内容</p><div id="choiceBox" class="choice-box" hidden></div><div class="build-footer"><button id="finishBuildBtn" class="primary-btn" type="button" disabled>结束 BUILD</button></div></section>
         <section class="side-card"><div class="side-title"><h2>Cell Needs</h2><span>公共目标 · 3 张</span></div><div id="needs" class="needs"></div><div id="needFooter" class="need-footer" hidden><button id="skipNeedBtn" class="ghost-btn" type="button">跳过目标并结束回合</button></div></section>
       </aside>
     </div>
   </main>
 
   <dialog id="rulesDialog">
-    <div class="dialog-inner"><div class="dialog-head"><h2>快速规则</h2><button class="icon-btn" data-close-dialog="rulesDialog" type="button" aria-label="关闭">×</button></div><div class="rules-grid"><div class="rule"><strong>每回合二选一</strong><span>BUILD 可以连续打任意张付得起的手牌；ACTIVATE 输入 1 个基础营养，再选择一整行从左到右运行。</span></div><div class="rule"><strong>资源的来源</strong><span>Water、CO₂、Amino acids 从外界经 Cell Membrane 进入；Glucose、Energy、Protein 必须由细胞内部制造。</span></div><div class="rule"><strong>三种卡牌标签</strong><span>↻ MULTIPLE 可以重复建造。◆ CORE 和 ⬆ UPGRADE 每个细胞最多一张。每张牌的版本名与功能来自 Excel 图鉴。</span></div><div class="rule"><strong>完成 Cell Need</strong><span>ACTIVATE 后可以完成最多 1 张公共目标，不额外消耗行动。完成后立刻补出新的目标。</span></div><div class="rule"><strong>四轮游戏</strong><span>每位玩家每轮有 4 个 Action Tokens。所有玩家用完后进入下一轮，第 4 轮结束后结算。</span></div><div class="rule"><strong>单人目标</strong><span>开局选 3、6 或 9 Growth 门槛。第 4 轮结束时达到目标即挑战成功；提前达到也继续玩完四轮。</span></div><div class="rule"><strong>多人胜负</strong><span>Growth 最高者获胜。平局依次比较 Finished Protein、已建成的 organelle 数量。</span></div></div></div>
+    <div class="dialog-inner"><div class="dialog-head"><h2>快速规则</h2><button class="icon-btn" data-close-dialog="rulesDialog" type="button" aria-label="关闭">×</button></div><div class="rules-grid"><div class="rule"><strong>每回合二选一</strong><span>BUILD 可以连续打任意张付得起的手牌；ACTIVATE 输入 1 个基础营养，再选择一整行从左到右运行。运行前可将任意卡牌设为“本次跳过”。</span></div><div class="rule"><strong>资源兑换</strong><span>自己的回合随时可交出 2 个相同资源，或任意 3 个资源，换取 1 个资源（Protein 除外）。不耗行动次数，可重复使用；Stability 不能兑换。</span></div><div class="rule"><strong>三种卡牌标签</strong><span>↻ MULTIPLE 可以重复建造。◆ CORE 和 ⬆ UPGRADE 每个细胞最多一张。每张牌的版本名与功能来自 Excel 图鉴。</span></div><div class="rule"><strong>完成 Cell Need</strong><span>ACTIVATE 后可以完成最多 1 张公共目标，不额外消耗行动。完成后立刻补出新的目标；若连兑换后也无法完成，自动跳过。</span></div><div class="rule"><strong>四轮游戏</strong><span>每位玩家每轮有 4 个 Action Tokens。所有玩家用完后进入下一轮，第 4 轮结束后结算。</span></div><div class="rule"><strong>单人目标</strong><span>开局选 3、6 或 9 Growth 门槛。第 4 轮结束时达到目标即挑战成功；提前达到也继续玩完四轮。</span></div><div class="rule"><strong>多人胜负</strong><span>Growth 最高者获胜。平局依次比较 Finished Protein、已建成的 organelle 数量。</span></div></div></div>
   </dialog>
 
   <dialog id="roomDialog">
@@ -428,6 +448,8 @@
       const RESOURCE_META = {
         water: ['💧','Water'], co2: ['◌','CO₂'], amino: ['🟣','Amino'], glucose: ['🍬','Glucose'], energy: ['⚡','Energy'], protein: ['🔵','Protein'], finished: ['📦','Finished'], stability: ['▦','Stability']
       };
+      const TRADE_INPUTS = ['water','co2','amino','glucose','energy','protein','finished'];
+      const TRADE_OUTPUTS = TRADE_INPUTS.filter(key => key !== 'protein');
       const NEED_TEMPLATES = {
         grow: { name: 'Grow', icon: '🌱', points: 3, cost: { energy: 2, protein: 1, water: 1 } },
         repair: { name: 'Repair', icon: '🔧', points: 2, cost: { energy: 1, protein: 1 } },
@@ -442,6 +464,7 @@
       let phase = 'choose';
       let builtThisAction = 0;
       let selectedIntake = null;
+      let skippedCards = [];
       let choiceCards = [];
       let activity = [];
       let flashRow = null;
@@ -450,7 +473,7 @@
       let roomInviteValue = '';
       let joinNameValue = '玩家';
       let roomLobby = { players: [], maxPlayers: 4 };
-      let network = { role: 'local', transport: null, roomCode: '', localPlayerIndex: 0, started: false, applyingRemote: false, seatToPlayerIndex: new Map() };
+      let network = { role: 'local', transport: null, roomCode: '', localPlayerIndex: 0, viewedPlayerIndex: 0, started: false, applyingRemote: false, seatToPlayerIndex: new Map() };
 
       const $ = id => document.getElementById(id);
       function roomCodeFromValue(value) {
@@ -491,8 +514,11 @@
       };
       const currentPlayer = () => state.players[currentPlayerIndex];
       const isOnline = () => network.role !== 'local';
-      const displayPlayer = () => isOnline() ? state.players[network.localPlayerIndex] : currentPlayer();
+      const viewedPlayerIndex = () => isOnline() && state.players[network.viewedPlayerIndex] ? network.viewedPlayerIndex : currentPlayerIndex;
+      const displayPlayer = () => state.players[viewedPlayerIndex()];
+      const privateHandPlayer = () => isOnline() ? state.players[network.localPlayerIndex] : currentPlayer();
       const isLocalTurn = () => !isOnline() || network.localPlayerIndex === currentPlayerIndex;
+      const canControlDisplayedCell = () => isLocalTurn() && (!isOnline() || viewedPlayerIndex() === network.localPlayerIndex);
       const allBuilt = player => Object.values(player.board).flat();
       const hasBuilt = (player, key) => allBuilt(player).some(id => id === key || CARD_DEFS[id]?.group === key);
       const countGroup = (player, group) => allBuilt(player).filter(id => CARD_DEFS[id]?.group === group).length;
@@ -597,7 +623,8 @@
         state = { mode: isSolo ? 'solo' : 'multiplayer', soloTarget: isSolo && [3,6,9].includes(target) ? target : null, round: 1, players: names.map((name,index) => makePlayer((String(name).trim() || `玩家 ${index + 1}`).slice(0,16),index)), deck: makeDeck(names.length), discard: [], needs: ['grow','repair','produce'], needDeck: shuffle(['grow','repair','produce','grow','repair','produce']), gameOver: false };
         if (isSolo && state.soloTarget === null) state.soloTarget = 6;
         state.players.forEach(player => { if (state.deck.length) player.hand.push(state.deck.shift()); });
-        currentPlayerIndex = 0; firstPlayerIndex = 0; phase = 'choose'; builtThisAction = 0; selectedIntake = null; choiceCards = []; activity = []; flashRow = null;
+        currentPlayerIndex = 0; firstPlayerIndex = 0; phase = 'choose'; builtThisAction = 0; selectedIntake = null; skippedCards = []; choiceCards = []; activity = []; flashRow = null;
+        if (isOnline()) network.viewedPlayerIndex = network.localPlayerIndex;
         network.started = true;
         $('setupScreen').hidden = true; $('gameApp').hidden = false;
         setMessage('选择行动', 'BUILD 扩展自己的细胞，ACTIVATE 让一条 pathway 工作。');
@@ -617,7 +644,7 @@
       }
 
       function roomSnapshotFor(seat) {
-        const snapshot = JSON.parse(JSON.stringify({ state, currentPlayerIndex, firstPlayerIndex, phase, builtThisAction, selectedIntake, choiceCards, activity, flashRow }));
+        const snapshot = JSON.parse(JSON.stringify({ state, currentPlayerIndex, firstPlayerIndex, phase, builtThisAction, selectedIntake, skippedCards, choiceCards, activity, flashRow }));
         if (snapshot.state) snapshot.state.players.forEach((player, index) => { if (index !== seat) player.hand = []; });
         if (snapshot.currentPlayerIndex !== seat) snapshot.choiceCards = [];
         return snapshot;
@@ -640,16 +667,19 @@
       function applyRoomSnapshot(message) {
         const snapshot = message?.snapshot;
         if (!snapshot?.state) return;
+        const firstSnapshot = !network.started;
         state = snapshot.state;
         currentPlayerIndex = Number.isInteger(snapshot.currentPlayerIndex) ? snapshot.currentPlayerIndex : 0;
         firstPlayerIndex = Number.isInteger(snapshot.firstPlayerIndex) ? snapshot.firstPlayerIndex : 0;
         phase = snapshot.phase || 'choose';
         builtThisAction = Number(snapshot.builtThisAction || 0);
         selectedIntake = snapshot.selectedIntake || null;
+        skippedCards = Array.isArray(snapshot.skippedCards) ? snapshot.skippedCards : [];
         choiceCards = Array.isArray(snapshot.choiceCards) ? snapshot.choiceCards : [];
         activity = Array.isArray(snapshot.activity) ? snapshot.activity : [];
         flashRow = snapshot.flashRow || null;
         if (Number.isInteger(message.seat)) network.localPlayerIndex = message.seat;
+        if (firstSnapshot || !state.players[network.viewedPlayerIndex]) network.viewedPlayerIndex = network.localPlayerIndex;
         network.started = true;
         $('setupScreen').hidden = true;
         $('gameApp').hidden = false;
@@ -662,7 +692,7 @@
 
       function disconnectRoom() {
         if (network.transport) network.transport.close();
-        network = { role: 'local', transport: null, roomCode: '', localPlayerIndex: 0, started: false, applyingRemote: false, seatToPlayerIndex: new Map() };
+        network = { role: 'local', transport: null, roomCode: '', localPlayerIndex: 0, viewedPlayerIndex: 0, started: false, applyingRemote: false, seatToPlayerIndex: new Map() };
         roomLobby = { players: [], maxPlayers: 4 };
         roomView = 'create';
         roomError = '';
@@ -738,6 +768,7 @@
       function handleRoomMessage(message) {
         if (message.type === 'seat') {
           network.localPlayerIndex = message.seat;
+          network.viewedPlayerIndex = message.seat;
           network.roomCode = message.roomCode || network.roomCode;
           roomView = 'waiting';
           renderRoomDialog('waiting');
@@ -765,7 +796,9 @@
           else if (command === 'run') runPathway(payload.rowId);
           else if (command === 'choice') keepChoice(Number(payload.index));
           else if (command === 'need') completeNeed(Number(payload.slot));
-          else if (command === 'skip') finishTurn();
+          else if (command === 'skip' && phase === 'need' && !choiceCards.length) finishTurn();
+          else if (command === 'trade') tradeResources(payload.inputs, payload.output);
+          else if (command === 'toggle-card') toggleCardEffect(payload.rowId, Number(payload.index));
           else if (command === 'cancel') cancelAction();
         } finally {
           network.applyingRemote = false;
@@ -777,15 +810,17 @@
         if (network.role === 'client' && network.transport) network.transport.sendToHost({ type: 'command', command, payload });
       }
 
-      function requestAction(action) { if (!isLocalTurn()) return; if (network.role === 'client') { sendRoomCommand('action', { action }); return; } chooseAction(action); syncRoomState(); }
-      function requestPlay(index) { if (!isLocalTurn()) return; if (network.role === 'client') { sendRoomCommand('play', { index }); return; } playCard(index); syncRoomState(); }
-      function requestFinishBuild() { if (!isLocalTurn()) return; if (network.role === 'client') { sendRoomCommand('finish-build'); return; } finishBuild(); syncRoomState(); }
-      function requestIntake(resource) { if (!isLocalTurn()) return; if (network.role === 'client') { sendRoomCommand('intake', { resource }); return; } selectIntake(resource); syncRoomState(); }
-      function requestRun(rowId) { if (!isLocalTurn()) return; if (network.role === 'client') { sendRoomCommand('run', { rowId }); return; } runPathway(rowId); syncRoomState(); }
-      function requestChoice(index) { if (!isLocalTurn()) return; if (network.role === 'client') { sendRoomCommand('choice', { index }); return; } keepChoice(index); syncRoomState(); }
-      function requestNeed(slot) { if (!isLocalTurn()) return; if (network.role === 'client') { sendRoomCommand('need', { slot }); return; } completeNeed(slot); syncRoomState(); }
-      function requestSkip() { if (!isLocalTurn()) return; if (network.role === 'client') { sendRoomCommand('skip'); return; } if (phase === 'need' && !choiceCards.length) { addLog('跳过了 Cell Need'); finishTurn(); syncRoomState(); } }
-      function requestCancel() { if (!isLocalTurn()) return; if (network.role === 'client') { sendRoomCommand('cancel'); return; } cancelAction(); syncRoomState(); }
+      function requestAction(action) { if (!canControlDisplayedCell()) return; if (network.role === 'client') { sendRoomCommand('action', { action }); return; } chooseAction(action); syncRoomState(); }
+      function requestPlay(index) { if (!canControlDisplayedCell()) return; if (network.role === 'client') { sendRoomCommand('play', { index }); return; } playCard(index); syncRoomState(); }
+      function requestFinishBuild() { if (!canControlDisplayedCell()) return; if (network.role === 'client') { sendRoomCommand('finish-build'); return; } finishBuild(); syncRoomState(); }
+      function requestIntake(resource) { if (!canControlDisplayedCell()) return; if (network.role === 'client') { sendRoomCommand('intake', { resource }); return; } selectIntake(resource); syncRoomState(); }
+      function requestRun(rowId) { if (!canControlDisplayedCell()) return; if (network.role === 'client') { sendRoomCommand('run', { rowId }); return; } runPathway(rowId); syncRoomState(); }
+      function requestChoice(index) { if (!canControlDisplayedCell()) return; if (network.role === 'client') { sendRoomCommand('choice', { index }); return; } keepChoice(index); syncRoomState(); }
+      function requestNeed(slot) { if (!canControlDisplayedCell()) return; if (network.role === 'client') { sendRoomCommand('need', { slot }); return; } completeNeed(slot); syncRoomState(); }
+      function requestSkip() { if (!canControlDisplayedCell()) return; if (network.role === 'client') { sendRoomCommand('skip'); return; } if (phase === 'need' && !choiceCards.length) { addLog('跳过了 Cell Need'); finishTurn(); syncRoomState(); } }
+      function requestCancel() { if (!canControlDisplayedCell()) return; if (network.role === 'client') { sendRoomCommand('cancel'); return; } cancelAction(); syncRoomState(); }
+      function requestTrade(inputs, output) { if (!canControlDisplayedCell()) return; if (network.role === 'client') { sendRoomCommand('trade', { inputs, output }); return; } tradeResources(inputs, output); syncRoomState(); }
+      function requestToggleCard(rowId, index) { if (!canControlDisplayedCell()) return; if (network.role === 'client') { sendRoomCommand('toggle-card', { rowId, index }); return; } toggleCardEffect(rowId, index); syncRoomState(); }
 
       function createOnlineRoom() {
         if (network.role !== 'local' && network.transport?.token && network.roomCode) {
@@ -802,6 +837,7 @@
         disconnectRoom();
         network.role = 'host';
         network.localPlayerIndex = 0;
+        network.viewedPlayerIndex = 0;
         network.transport = new window.CellworksRoom(roomCallbacks());
         roomError = '';
         renderRoomDialog('creating');
@@ -858,6 +894,7 @@
         phase = action;
         builtThisAction = 0;
         selectedIntake = null;
+        skippedCards = [];
         if (action === 'build') setMessage('BUILD 已开始', '从手牌连续打出任意张付得起的牌，然后结束 BUILD。');
         else setMessage('ACTIVATE 已开始', '先让 Cell Membrane 输入 1 个基础营养，再选择一整行。');
         render();
@@ -867,6 +904,7 @@
         if (!state || !['build','activate'].includes(phase) || builtThisAction || choiceCards.length) return;
         phase = 'choose';
         selectedIntake = null;
+        skippedCards = [];
         setMessage('重新选择行动', 'BUILD 扩展自己的细胞，ACTIVATE 让一条 pathway 工作。');
         render();
       }
@@ -950,6 +988,7 @@
         else state.discard.push(kept);
         choiceCards = [];
         setMessage(`保留 ${CARD_DEFS[kept].name}`, phase === 'build' ? '可以继续 BUILD，或结束行动。' : '现在可以完成最多 1 张 Cell Need。');
+        if (phase === 'need' && autoSkipImpossibleNeed()) return;
         render();
       }
 
@@ -965,6 +1004,77 @@
         selectedIntake = resource;
         setMessage(`选择 ${RESOURCE_META[resource][1]}`, '现在选择一条已经建有 organelle 的 pathway。');
         render();
+      }
+
+      function tradeCost(inputs) {
+        if (!Array.isArray(inputs) || ![2,3].includes(inputs.length) || !inputs.every(key => TRADE_INPUTS.includes(key))) return null;
+        if (inputs.length === 2 && inputs[0] !== inputs[1]) return null;
+        return inputs.reduce((cost,key) => { cost[key] = (cost[key] || 0) + 1; return cost; }, {});
+      }
+
+      function tradeResources(inputs, output) {
+        if (!state || state.gameOver || !TRADE_OUTPUTS.includes(output)) return false;
+        const cost = tradeCost(inputs);
+        const player = currentPlayer();
+        if (!cost || !canPay(player,cost) || (output === 'water' && player.resources.water - (cost.water || 0) >= player.waterCap)) return false;
+        pay(player,cost);
+        player.resources[output] += 1;
+        syncStability(player);
+        addLog(`兑换 ${costText(cost)} → ${RESOURCE_META[output][0]}1`);
+        setMessage('资源兑换完成', `获得 1 ${RESOURCE_META[output][1]}；不消耗 Action Token。`);
+        render();
+        return true;
+      }
+
+      function toggleCardEffect(rowId, index) {
+        if (phase !== 'activate' || !currentPlayer().board[rowId]?.[index]) return false;
+        const key = `${rowId}:${index}`;
+        skippedCards = skippedCards.includes(key) ? skippedCards.filter(item => item !== key) : [...skippedCards,key];
+        render();
+        return true;
+      }
+
+      function canReachNeedWithTrades(player) {
+        const needs = state.needs.map(id => NEED_TEMPLATES[id]).filter(Boolean);
+        if (needs.some(need => canPay(player,need.cost))) return true;
+        if (!needs.some(need => !need.cost.protein || player.resources.protein >= need.cost.protein)) return false;
+        const seen = new Set();
+        let visits = 0;
+        const possible = resources => {
+          if (needs.some(need => Object.entries(need.cost).every(([key,value]) => resources[key] >= value))) return true;
+          const signature = TRADE_INPUTS.map(key => resources[key]).join(',');
+          if (seen.has(signature)) return false;
+          seen.add(signature);
+          if (++visits > 12000) return true; // 不确定时保留手动兑换机会
+          const outputs = [...new Set(needs.flatMap(need => Object.keys(need.cost).filter(key => TRADE_OUTPUTS.includes(key) && resources[key] < need.cost[key])))];
+          for (const output of outputs) {
+            for (const input of TRADE_INPUTS) {
+              if (resources[input] < 2) continue;
+              const next = { ...resources, [input]: resources[input] - 2 };
+              if (output === 'water' && next.water >= player.waterCap) continue;
+              next[output] += 1;
+              if (possible(next)) return true;
+            }
+            for (let a = 0; a < TRADE_INPUTS.length; a += 1) for (let b = a; b < TRADE_INPUTS.length; b += 1) for (let c = b; c < TRADE_INPUTS.length; c += 1) {
+              const cost = tradeCost([TRADE_INPUTS[a],TRADE_INPUTS[b],TRADE_INPUTS[c]]);
+              if (!Object.entries(cost).every(([key,value]) => resources[key] >= value)) continue;
+              const next = { ...resources };
+              Object.entries(cost).forEach(([key,value]) => { next[key] -= value; });
+              if (output === 'water' && next.water >= player.waterCap) continue;
+              next[output] += 1;
+              if (possible(next)) return true;
+            }
+          }
+          return false;
+        };
+        return possible(player.resources);
+      }
+
+      function autoSkipImpossibleNeed() {
+        if (phase !== 'need' || choiceCards.length || canReachNeedWithTrades(currentPlayer())) return false;
+        addLog('目标无法完成，自动跳过');
+        finishTurn();
+        return true;
       }
 
       function convert(player, input, output, context) {
@@ -1133,13 +1243,19 @@
         const context = { proteinMade: false, producedGlucose: false, processedProtein: false, conversions: 0, rowCards, index: 0 };
         const ran = [];
         const skipped = [];
-        rowCards.forEach((id,index) => { context.index = index; (activateCard(player,id,context) ? ran : skipped).push(id); });
+        rowCards.forEach((id,index) => {
+          context.index = index;
+          if (skippedCards.includes(`${rowId}:${index}`)) skipped.push(id);
+          else if (activateCard(player,id,context)) ran.push(id);
+          else skipped.push(id);
+        });
         syncStability(player);
         flashRow = rowId;
         phase = 'need';
         addLog(`输入 ${RESOURCE_META[selectedIntake][1]}，激活 ${PATHS.find(path => path.id === rowId).name}`);
         const ranText = ran.length ? ran.map(id => CARD_DEFS[id].name).join(' → ') : '没有卡牌成功运行';
         setMessage('Pathway 已从左到右运行', `${ranText}${skipped.length ? `；跳过 ${skipped.map(id => CARD_DEFS[id].name).join('、')}` : ''}。现在可以完成最多 1 张 Cell Need。`);
+        if (!choiceCards.length && autoSkipImpossibleNeed()) return true;
         render();
         window.setTimeout(() => { flashRow = null; render(); }, 1050);
         return true;
@@ -1165,7 +1281,7 @@
       function finishTurn() {
         const player = currentPlayer();
         player.actions -= 1;
-        phase = 'choose'; builtThisAction = 0; selectedIntake = null; choiceCards = []; flashRow = null;
+        phase = 'choose'; builtThisAction = 0; selectedIntake = null; skippedCards = []; choiceCards = []; flashRow = null;
         if (state.players.every(item => item.actions === 0)) {
           if (state.round >= 4) { state.gameOver = true; render(); showResults(); return; }
           state.round += 1;
@@ -1269,7 +1385,14 @@
 
       function renderScoreboard() {
         $('scoreboard').classList.toggle('solo', state.mode === 'solo');
-        $('scoreboard').innerHTML = state.players.map((player,index) => `<article class="player-chip${index === currentPlayerIndex ? ' active' : ''}" style="--player-color:${player.color}"><div class="player-chip-top"><span class="player-dot"></span><span class="player-chip-name">${escapeHtml(player.name)}</span></div><div class="player-chip-stats"><span><strong>${player.growth}</strong> Growth</span><span><strong>${player.actions}</strong> actions</span></div></article>`).join('');
+        $('scoreboard').classList.toggle('online', isOnline());
+        $('viewHint').hidden = !isOnline();
+        $('scoreboard').innerHTML = state.players.map((player,index) => {
+          const tag = isOnline() ? 'button' : 'article';
+          const viewed = isOnline() && index === viewedPlayerIndex();
+          const label = viewed ? '查看中' : index === currentPlayerIndex && isOnline() ? '行动中' : '';
+          return `<${tag} class="player-chip${index === currentPlayerIndex ? ' active' : ''}${viewed ? ' viewing' : ''}" style="--player-color:${player.color}"${isOnline() ? ` data-view-player-index="${index}" type="button" aria-pressed="${viewed}" aria-label="查看 ${escapeHtml(player.name)} 的细胞"` : ''}><div class="player-chip-top"><span class="player-dot"></span><span class="player-chip-name">${escapeHtml(player.name)}</span>${label ? `<span class="player-chip-tag">${label}</span>` : ''}</div><div class="player-chip-stats"><span><strong>${player.growth}</strong> Growth</span><span><strong>${player.actions}</strong> actions</span></div></${tag}>`;
+        }).join('');
       }
 
       function renderSoloGoal() {
@@ -1292,34 +1415,45 @@
 
       function renderPathways() {
         const player = displayPlayer();
+        $('pathways').parentElement.setAttribute('aria-label', `${player.name} 的植物细胞板`);
         $('pathways').innerHTML = PATHS.map(path => {
           const cards = player.board[path.id];
-          const rowHtml = cards.length ? cards.map((id,index) => { const card = CARD_DEFS[id]; return `<article class="org-card${flashRow === path.id ? ' flash' : ''}" data-preview-id="${id}" style="--lane:${path.color};animation-delay:${index * 130}ms"><button class="card-art-trigger" data-preview-open="${id}" type="button" aria-label="放大查看 ${escapeHtml(card.name)} 卡面"><img class="org-art" src="${cardImage(card)}" alt="" loading="lazy"></button><div class="org-card-head"><span class="org-icon">${card.icon}</span><span class="org-kind">${kindText(card)}</span></div><div class="org-name">${escapeHtml(card.name)}</div><div class="org-version">${escapeHtml(card.version)} · ${id}</div></article>`; }).join('') : '<div class="empty-lane"><div><strong>这条 pathway 还没有卡牌</strong><span>从 Blueprint hand 打出第一张 organelle</span></div></div>';
-          const canRun = phase === 'activate' && selectedIntake && cards.length && isLocalTurn();
-          return `<section class="pathway${flashRow === path.id ? ' running' : ''}" data-row="${path.id}" style="--lane:${path.color}"><div class="path-label"><strong>${path.name}</strong><span>${path.note}</span></div><div class="path-content"><div class="activation-beam"></div><div class="card-row">${rowHtml}</div><button class="activate-row" data-run-row="${path.id}" type="button" ${canRun ? '' : 'disabled'}>从左到右运行 ${path.name} →</button></div></section>`;
+          const flashing = flashRow === path.id && viewedPlayerIndex() === currentPlayerIndex;
+          const rowHtml = cards.length ? cards.map((id,index) => { const card = CARD_DEFS[id]; const canToggle = phase === 'activate' && canControlDisplayedCell() && viewedPlayerIndex() === currentPlayerIndex; const skipped = skippedCards.includes(`${path.id}:${index}`); return `<article class="org-card${flashing ? ' flash' : ''}" data-preview-id="${id}" style="--lane:${path.color};animation-delay:${index * 130}ms"><button class="card-art-trigger" data-preview-open="${id}" type="button" aria-label="放大查看 ${escapeHtml(card.name)} 卡面"><img class="org-art" src="${cardImage(card)}" alt="" loading="lazy"></button><div class="org-card-head"><span class="org-icon">${card.icon}</span><span class="org-kind">${kindText(card)}</span></div><div class="org-name">${escapeHtml(card.name)}</div><div class="org-version">${escapeHtml(card.version)} · ${id}</div>${canToggle ? `<button class="org-toggle${skipped ? ' off' : ''}" data-toggle-card="${path.id}:${index}" type="button" aria-pressed="${!skipped}">${skipped ? '本次跳过' : '本次使用'}</button>` : ''}</article>`; }).join('') : '<div class="empty-lane"><div><strong>这条 pathway 还没有卡牌</strong><span>从 Blueprint hand 打出第一张 organelle</span></div></div>';
+          const canRun = phase === 'activate' && selectedIntake && cards.length && canControlDisplayedCell();
+          return `<section class="pathway${flashing ? ' running' : ''}" data-row="${path.id}" style="--lane:${path.color}"><div class="path-label"><strong>${path.name}</strong><span>${path.note}</span></div><div class="path-content"><div class="activation-beam"></div><div class="card-row">${rowHtml}</div><button class="activate-row" data-run-row="${path.id}" type="button" ${canRun ? '' : 'disabled'}>从左到右运行 ${path.name} →</button></div></section>`;
         }).join('');
       }
 
       function renderResources() {
         const player = displayPlayer();
         syncStability(player);
-        $('resourceOwner').textContent = `${player.name}${isOnline() ? ' · 你的细胞' : ''}`;
+        $('resourceOwner').textContent = `${player.name}${isOnline() ? viewedPlayerIndex() === network.localPlayerIndex ? ' · 你的细胞' : ' · 对方细胞' : ''}`;
         $('resources').innerHTML = Object.entries(RESOURCE_META).map(([key,[icon,name]]) => `<div class="resource"><span class="resource-name">${icon} ${name}</span><span class="resource-value">${player.resources[key]}${key === 'water' ? `<small> / ${player.waterCap}</small>` : ''}</span></div>`).join('');
+        $('tradePanel').hidden = state.gameOver || !canControlDisplayedCell();
+        const mode = $('tradeMode').value;
+        const oldInputs = [...$('tradeInputs').querySelectorAll('select')].map(select => select.value);
+        const oldOutput = $('tradeOutput').value;
+        $('tradeOutput').innerHTML = TRADE_OUTPUTS.map(key => `<option value="${key}">${RESOURCE_META[key][0]} ${RESOURCE_META[key][1]}</option>`).join('');
+        $('tradeOutput').value = TRADE_OUTPUTS.includes(oldOutput) ? oldOutput : 'energy';
+        $('tradeInputs').innerHTML = Array.from({ length: mode === 'three' ? 3 : 1 }, (_,index) => `<select aria-label="交出资源 ${index + 1}">${TRADE_INPUTS.map(key => `<option value="${key}">${RESOURCE_META[key][0]} ${RESOURCE_META[key][1]} · ${player.resources[key]}</option>`).join('')}</select>`).join('');
+        [...$('tradeInputs').querySelectorAll('select')].forEach((select,index) => { select.value = TRADE_INPUTS.includes(oldInputs[index]) ? oldInputs[index] : TRADE_INPUTS.find(key => player.resources[key] >= (mode === 'pair' ? 2 : 1)) || 'water'; });
       }
 
       function renderHand() {
-        const player = displayPlayer();
+        const player = privateHandPlayer();
+        $('handTitle').textContent = isOnline() ? '你的 Blueprint hand' : 'Blueprint hand';
         $('handCount').textContent = `${player.hand.length}/${player.handCap} 张`;
         $('hand').innerHTML = player.hand.length ? player.hand.map((id,index) => {
           const card = CARD_DEFS[id];
           const check = buildCheck(player,id);
-          const enabled = phase === 'build' && !choiceCards.length && isLocalTurn() && check.ok;
-          const status = !isLocalTurn() ? `等待 ${currentPlayer().name}` : phase !== 'build' ? '选择 BUILD' : check.reason;
+          const enabled = phase === 'build' && !choiceCards.length && canControlDisplayedCell() && check.ok;
+          const status = !isLocalTurn() ? `等待 ${currentPlayer().name}` : !canControlDisplayedCell() ? '切回自己的细胞' : phase !== 'build' ? '选择 BUILD' : check.reason;
           return `<article class="hand-card" data-preview-id="${id}" style="--lane:${PATHS.find(path => path.id === card.row)?.color || 'var(--green)'}"><button class="card-art-trigger" data-preview-open="${id}" type="button" aria-label="放大查看 ${escapeHtml(card.name)} 卡面"><img class="hand-card-art" src="${cardImage(card)}" alt="" loading="lazy"></button><div class="hand-card-copy"><div class="hand-card-top"><span class="hand-card-name">${escapeHtml(card.icon)} ${escapeHtml(card.name)}</span><span class="hand-card-kind">${escapeHtml(kindText(card))}</span></div><div class="hand-card-version">${escapeHtml(card.version)} · ${id}</div><p class="hand-card-effect">${escapeHtml(card.learn)}</p><div class="hand-card-bottom"><span class="cost">Build ${escapeHtml(buildCostText(card))}</span><button class="hand-card-play" data-hand-index="${index}" type="button" ${enabled ? '' : 'disabled'}>${enabled ? '建造' : escapeHtml(status)}</button></div></div></article>`;
         }).join('') : '<div class="empty-lane"><div><strong>手牌已空</strong><span>Nucleus 可以抽取新的 blueprint</span></div></div>';
-        $('finishBuildBtn').disabled = phase !== 'build' || !builtThisAction || choiceCards.length || !isLocalTurn();
+        $('finishBuildBtn').disabled = phase !== 'build' || !builtThisAction || choiceCards.length || !canControlDisplayedCell();
         $('finishBuildBtn').textContent = `结束 BUILD · 已建 ${builtThisAction} 张`;
-        $('choiceBox').hidden = !choiceCards.length;
+        $('choiceBox').hidden = !choiceCards.length || !canControlDisplayedCell();
         $('choiceBox').innerHTML = choiceCards.length ? `<strong>选择 1 张 blueprint</strong><div class="choice-options">${choiceCards.map((id,index) => `<div class="choice-option" data-preview-id="${id}"><button class="card-art-trigger" data-preview-open="${id}" type="button" aria-label="放大查看 ${escapeHtml(CARD_DEFS[id].name)} 卡面"><img src="${cardImage(CARD_DEFS[id])}" alt="" loading="lazy"></button><button data-choice-index="${index}" type="button">${escapeHtml(CARD_DEFS[id].icon)} ${escapeHtml(CARD_DEFS[id].name)} · ${escapeHtml(CARD_DEFS[id].version)} · ${escapeHtml(buildCostText(CARD_DEFS[id]))}</button></div>`).join('')}</div>` : '';
       }
 
@@ -1328,14 +1462,14 @@
         $('needs').innerHTML = state.needs.map((id,index) => {
           if (!id) return '<div class="need-card"><span>目标牌库已空</span></div>';
           const need = NEED_TEMPLATES[id];
-          const ready = phase === 'need' && !choiceCards.length && isLocalTurn() && canPay(player,need.cost);
+          const ready = phase === 'need' && !choiceCards.length && canControlDisplayedCell() && canPay(player,need.cost);
           return `<article class="need-card${ready ? ' ready' : ''}"><div><strong>${need.icon} ${need.name}</strong><div class="need-cost">${costText(need.cost)}</div></div><span class="need-points">+${need.points} Growth</span><button data-need-slot="${index}" type="button" ${ready ? '' : 'disabled'}>完成这个 Cell Need</button></article>`;
         }).join('');
-        $('needFooter').hidden = phase !== 'need' || choiceCards.length;
+        $('needFooter').hidden = phase !== 'need' || choiceCards.length || !canControlDisplayedCell();
       }
 
       function renderIntake() {
-        $('intakeOptions').innerHTML = ['water','co2','amino'].map(key => `<button class="intake-btn${selectedIntake === key ? ' active' : ''}" data-intake="${key}" type="button" ${phase === 'activate' && isLocalTurn() ? '' : 'disabled'}>${RESOURCE_META[key][0]} ${RESOURCE_META[key][1]}</button>`).join('');
+        $('intakeOptions').innerHTML = ['water','co2','amino'].map(key => `<button class="intake-btn${selectedIntake === key ? ' active' : ''}" data-intake="${key}" type="button" ${phase === 'activate' && canControlDisplayedCell() ? '' : 'disabled'}>${RESOURCE_META[key][0]} ${RESOURCE_META[key][1]}</button>`).join('');
       }
 
       function renderLog() {
@@ -1348,11 +1482,12 @@
         $('roundLabel').textContent = `第 ${state.round} 轮`;
         $('roundPips').innerHTML = Array.from({ length: 4 },(_,index) => `<span class="round-pip${index < state.round ? ' done' : ''}"></span>`).join('');
         $('deckLabel').textContent = `牌库 ${state.deck.length} · 弃牌 ${state.discard.length}`;
-        $('turnTitle').textContent = `${currentPlayer().name} 的细胞`;
-        $('resourceOwner').textContent = currentPlayer().name;
-        $('turnHelp').textContent = !isLocalTurn() ? `等待 ${currentPlayer().name} 完成 ${phase === 'choose' ? '行动' : phase === 'build' ? 'BUILD' : phase === 'activate' ? 'ACTIVATE' : '目标选择'}` : phase === 'choose' ? `剩余 ${currentPlayer().actions} 个 Action Tokens` : phase === 'build' ? '本次 BUILD 可以连续打出多张牌' : phase === 'activate' ? '先选择营养，再运行一整行' : '完成最多 1 张 Cell Need，或跳过';
-        document.querySelectorAll('[data-action]').forEach(button => { button.classList.toggle('active',button.dataset.action === phase); button.disabled = phase !== 'choose' || !isLocalTurn(); });
-        $('cancelActionBtn').hidden = !['build','activate'].includes(phase) || builtThisAction > 0 || choiceCards.length > 0 || !isLocalTurn();
+        $('turnEyebrow').textContent = isOnline() ? '正在查看' : '当前玩家';
+        $('turnTitle').textContent = `${displayPlayer().name} 的细胞`;
+        const phaseLabel = phase === 'choose' ? '行动' : phase === 'build' ? 'BUILD' : phase === 'activate' ? 'ACTIVATE' : '目标选择';
+        $('turnHelp').textContent = isOnline() && !canControlDisplayedCell() && isLocalTurn() ? `轮到你行动 · 切回自己的细胞继续` : !isLocalTurn() ? `等待 ${currentPlayer().name} 完成${phaseLabel}` : phase === 'choose' ? `剩余 ${currentPlayer().actions} 个 Action Tokens` : phase === 'build' ? '本次 BUILD 可以连续打出多张牌' : phase === 'activate' ? '先选择营养，再运行一整行' : '完成最多 1 张 Cell Need，或跳过';
+        document.querySelectorAll('[data-action]').forEach(button => { button.classList.toggle('active',button.dataset.action === phase); button.disabled = phase !== 'choose' || !canControlDisplayedCell(); });
+        $('cancelActionBtn').hidden = !['build','activate'].includes(phase) || builtThisAction > 0 || choiceCards.length > 0 || !canControlDisplayedCell();
         renderScoreboard(); renderSoloGoal(); renderPathways(); renderResources(); renderHand(); renderNeeds(); renderIntake(); renderLog(); updateRoomBadge();
       }
 
@@ -1379,6 +1514,12 @@
       document.addEventListener('click', event => {
         const previewButton = event.target.closest('[data-preview-open]');
         if (previewButton) { showCardPreview(previewButton, previewButton.dataset.previewOpen, true); return; }
+        const viewChip = event.target.closest('[data-view-player-index]');
+        if (viewChip && isOnline() && state) {
+          const index = Number(viewChip.dataset.viewPlayerIndex);
+          if (Number.isInteger(index) && state.players[index]) { network.viewedPlayerIndex = index; render(); $('scoreboard').querySelector(`[data-view-player-index="${index}"]`)?.focus({ preventScroll: true }); }
+          return;
+        }
         const count = event.target.closest('[data-count]');
         if (count) { setupCount = Number(count.dataset.count); document.querySelectorAll('[data-count]').forEach(button => button.classList.toggle('active',button === count)); renderNameFields(); return; }
         const soloTargetButton = event.target.closest('[data-solo-target]');
@@ -1398,6 +1539,7 @@
         const action = event.target.closest('[data-action]'); if (action) { requestAction(action.dataset.action); return; }
         const hand = event.target.closest('[data-hand-index]'); if (hand) { requestPlay(Number(hand.dataset.handIndex)); return; }
         const intake = event.target.closest('[data-intake]'); if (intake) { requestIntake(intake.dataset.intake); return; }
+        const toggleCard = event.target.closest('[data-toggle-card]'); if (toggleCard) { const [rowId,index] = toggleCard.dataset.toggleCard.split(':'); requestToggleCard(rowId,Number(index)); return; }
         const row = event.target.closest('[data-run-row]'); if (row) { requestRun(row.dataset.runRow); return; }
         const choice = event.target.closest('[data-choice-index]'); if (choice) { requestChoice(Number(choice.dataset.choiceIndex)); return; }
         const need = event.target.closest('[data-need-slot]'); if (need) { requestNeed(Number(need.dataset.needSlot)); return; }
@@ -1411,6 +1553,19 @@
       $('finishBuildBtn').addEventListener('click', requestFinishBuild);
       $('cancelActionBtn').addEventListener('click', requestCancel);
       $('skipNeedBtn').addEventListener('click', requestSkip);
+      $('tradeMode').addEventListener('change', renderResources);
+      $('tradeSubmit').addEventListener('click', () => {
+        const mode = $('tradeMode').value;
+        const picked = [...$('tradeInputs').querySelectorAll('select')].map(select => select.value);
+        const inputs = mode === 'pair' ? [picked[0],picked[0]] : picked;
+        const output = $('tradeOutput').value;
+        const cost = tradeCost(inputs);
+        const player = currentPlayer();
+        if (!canControlDisplayedCell() || !cost || !canPay(player,cost)) { $('tradeFeedback').textContent = '交出的资源不足。'; return; }
+        if (output === 'water' && player.resources.water - (cost.water || 0) >= player.waterCap) { $('tradeFeedback').textContent = 'Water 已达到储存上限。'; return; }
+        $('tradeFeedback').textContent = '';
+        requestTrade(inputs,output);
+      });
       $('revealTurnBtn').addEventListener('click', () => { $('passScreen').hidden = true; });
       $('catalogBtn').addEventListener('click', () => { renderCatalog('organelles'); $('catalogDialog').showModal(); });
       $('rulesBtn').addEventListener('click', () => $('rulesDialog').showModal());
