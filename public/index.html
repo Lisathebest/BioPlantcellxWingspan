@@ -536,7 +536,7 @@
           body.innerHTML = `<div class="room-panel"><p>${network.role === 'host' ? '把下面的房间码发给朋友。' : '已加入房间，等待房主开始游戏。'}</p><div class="room-code">${escapeHtml(network.roomCode || '------')}</div><ul class="room-list">${list}</ul>${roomError ? `<div class="room-error">${escapeHtml(roomError)}</div>` : ''}${hostControls}</div>`;
           return;
         }
-        body.innerHTML = `<div class="room-panel"><p>你可以创建一个新房间，或加入朋友发来的房间码。无需注册，房间消息由网站服务器安全中转。</p><div class="room-actions"><button class="ghost-btn" data-room-action="create" type="button">创建房间</button><button class="primary-btn" data-room-action="join-form" type="button">加入房间</button></div></div>`;
+        body.innerHTML = `<div class="room-panel"><p>你可以创建一个新房间，或加入朋友发来的房间码。无需注册，房间消息由网站服务器安全中转。</p>${roomError ? `<div class="room-error">${escapeHtml(roomError)}</div>` : ''}<div class="room-actions"><button class="ghost-btn" data-room-action="create" type="button">创建房间</button><button class="primary-btn" data-room-action="join-form" type="button">加入房间</button></div></div>`;
       }
 
       function roomCallbacks() {
