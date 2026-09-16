@@ -408,7 +408,7 @@
       }
       function roomShareLink(code) {
         const url = new URL('/join', window.location.href);
-        url.searchParams.set('room', code);
+        url.searchParams.set('code', code);
         return url.toString();
       }
       async function copyRoomShareLink() {
@@ -555,7 +555,7 @@
         if (!body) return;
         if (roomView === 'join') {
           const invite = roomInviteValue || (linkedRoomCode() ? window.location.href : '');
-          body.innerHTML = `<div class="room-panel"><p>粘贴房主发来的分享链接，点开链接即可进入同一个房间。无需注册或登录。</p><div class="room-field"><label for="roomLinkInput">房间链接</label><input id="roomLinkInput" maxlength="512" autocomplete="off" inputmode="url" value="${escapeHtml(invite)}" placeholder="例如 https://…/join?room=…"></div><p class="room-note">旧版房间标识仍可兼容，但推荐直接使用分享链接。</p><div class="room-field"><label for="joinNameInput">你的名字</label><input id="joinNameInput" maxlength="16" autocomplete="off" value="${escapeHtml(joinNameValue)}"></div>${roomError ? `<div class="room-error">${escapeHtml(roomError)}</div>` : ''}<div class="room-actions"><button class="ghost-btn" data-room-action="back" type="button">返回</button><button class="primary-btn" data-room-action="join" type="button">打开房间</button></div></div>`;
+          body.innerHTML = `<div class="room-panel"><p>粘贴房主发来的分享链接，点开链接即可进入同一个房间。无需注册或登录。</p><div class="room-field"><label for="roomLinkInput">房间链接</label><input id="roomLinkInput" maxlength="512" autocomplete="off" inputmode="url" value="${escapeHtml(invite)}" placeholder="例如 https://…/join?code=…"></div><p class="room-note">旧版房间标识仍可兼容，但推荐直接使用分享链接。</p><div class="room-field"><label for="joinNameInput">你的名字</label><input id="joinNameInput" maxlength="16" autocomplete="off" value="${escapeHtml(joinNameValue)}"></div>${roomError ? `<div class="room-error">${escapeHtml(roomError)}</div>` : ''}<div class="room-actions"><button class="ghost-btn" data-room-action="back" type="button">返回</button><button class="primary-btn" data-room-action="join" type="button">打开房间</button></div></div>`;
           return;
         }
         if (roomView === 'creating') {
