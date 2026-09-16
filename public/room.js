@@ -6,6 +6,12 @@
   const POLL_INTERVAL = 900;
   const API_URL = '/api/room';
 
+  function localFileError() {
+    return window.location?.protocol === 'file:'
+      ? '你现在打开的是本地 HTML 文件。请打开 PocketBay 部署后的网址，或先启动网站服务，再使用跨设备房间。'
+      : '';
+  }
+
   function makeRoomCode() {
     let code = '';
     for (let index = 0; index < 6; index += 1) code += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
@@ -41,6 +47,12 @@
     }
 
     async request(action, extra = {}, options = {}) {
+      const localError = localFileError();
+      if (localError) {
+        const error = new Error(localError);
+        error.code = 'LOCAL_FILE';
+        throw error;
+      }
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -208,6 +220,7 @@
     }
 
     friendlyError(error) {
+      if (error?.code === 'LOCAL_FILE' || localFileError()) return localFileError();
       if (error?.code === 'ROOM_NOT_FOUND') return '找不到这个房间，请确认分享链接仍然有效。';
       if (error?.code === 'ROOM_FULL') return '房间人数已满。';
       if (error?.code === 'ROOM_STARTED') return '游戏已经开始，无法再加入这个房间。';
