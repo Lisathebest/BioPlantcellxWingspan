@@ -1,0 +1,13 @@
+{
+  "name": "cellworks-plant-cell-game",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cellworks plant-cell board game with shareable multiplayer rooms",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

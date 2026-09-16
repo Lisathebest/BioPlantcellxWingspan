@@ -1,4 +1,4 @@
-/* No-login room transport backed by the site's Vercel API and Redis. */
+/* No-login room transport backed by the site's own HTTP room service. */
 (() => {
   'use strict';
 
@@ -208,7 +208,7 @@
     }
 
     friendlyError(error) {
-      if (error?.code === 'ROOM_NOT_FOUND') return '找不到这个房间，请确认房间码。';
+      if (error?.code === 'ROOM_NOT_FOUND') return '找不到这个房间，请确认分享链接仍然有效。';
       if (error?.code === 'ROOM_FULL') return '房间人数已满。';
       if (error?.code === 'ROOM_STARTED') return '游戏已经开始，无法再加入这个房间。';
       return error?.message || '房间连接失败，请重试。';

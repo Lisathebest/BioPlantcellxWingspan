@@ -218,6 +218,10 @@
     .room-field { display: grid; gap: 5px; }
     .room-field label { color: var(--muted); font-size: .78rem; font-weight: 800; }
     .room-field input { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 10px; padding: 0 11px; color: var(--ink); background: #f8fbfa; }
+    .room-link-box { display: flex; gap: 8px; align-items: stretch; }
+    .room-link-box input { min-width: 0; flex: 1; color: var(--green); font-size: .82rem; }
+    .room-link-box button { flex: 0 0 auto; }
+    .room-note { color: var(--muted); font-size: .8rem; line-height: 1.4; }
     .room-list { display: grid; gap: 6px; padding: 0; margin: 0; list-style: none; }
     .room-list li { display: flex; justify-content: space-between; gap: 8px; padding: 9px 11px; border-radius: 10px; background: #f3f8f6; color: var(--ink); }
     .room-list small { color: var(--muted); }
@@ -257,7 +261,7 @@
         <button id="startGameBtn" class="primary-btn" type="button">开始游戏</button>
       </div>
       <div class="online-entry">
-        <div><strong>跨设备多人 · 无需登录</strong><span>创建房间后，把 6 位房间码发给朋友；每个人用自己的电脑打开同一个网址即可加入。</span></div>
+        <div><strong>跨设备多人 · 无需登录</strong><span>创建房间后复制分享链接，朋友点开链接就能加入，不需要手动填写房间号码。</span></div>
         <div class="online-actions"><button id="createRoomBtn" class="ghost-btn" type="button">创建线上房间</button><button id="joinRoomBtn" class="ghost-btn" type="button">加入房间</button></div>
       </div>
     </section>
@@ -320,7 +324,7 @@
     <div class="dialog-inner"><div class="dialog-head"><div><p class="setup-kicker">Four rounds complete</p><h2 id="winnerTitle">游戏结束</h2></div></div><div id="results" class="results"></div><button id="playAgainBtn" class="primary-btn" type="button">再玩一局</button></div>
   </dialog>
 
-  <script src="room.js?v=3"></script>
+  <script src="room.js?v=4"></script>
   <script src="card-data.js"></script>
   <script>
     (() => {
@@ -382,10 +386,43 @@
       let flashRow = null;
       let roomView = 'create';
       let roomError = '';
+      let roomInviteValue = '';
+      let joinNameValue = '玩家';
       let roomLobby = { players: [], maxPlayers: 4 };
       let network = { role: 'local', transport: null, roomCode: '', localPlayerIndex: 0, started: false, applyingRemote: false, seatToPlayerIndex: new Map() };
 
       const $ = id => document.getElementById(id);
+      function roomCodeFromValue(value) {
+        const raw = String(value || '').trim();
+        if (!raw) return '';
+        try {
+          const url = new URL(raw, window.location.href);
+          const linked = url.searchParams.get('room') || url.searchParams.get('roomCode') || url.searchParams.get('code');
+          if (linked) return String(linked).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+        } catch (_) {}
+        return raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+      }
+      function linkedRoomCode() {
+        const params = new URLSearchParams(window.location.search);
+        return roomCodeFromValue(params.get('room') || params.get('roomCode') || params.get('code'));
+      }
+      function roomShareLink(code) {
+        const url = new URL('/join', window.location.href);
+        url.searchParams.set('room', code);
+        return url.toString();
+      }
+      async function copyRoomShareLink() {
+        const link = roomShareLink(network.roomCode);
+        try {
+          if (!navigator.clipboard?.writeText) throw new Error('clipboard-unavailable');
+          await navigator.clipboard.writeText(link);
+          roomError = '分享链接已复制。';
+        } catch (_) {
+          roomError = '请手动复制上面的分享链接。';
+          setTimeout(() => { const input = $('roomShareLink'); if (input) { input.focus(); input.select(); } }, 0);
+        }
+        renderRoomDialog('lobby');
+      }
       const shuffle = items => {
         const result = [...items];
         for (let i = result.length - 1; i > 0; i -= 1) { const j = Math.floor(Math.random() * (i + 1)); [result[i], result[j]] = [result[j], result[i]]; }
@@ -456,7 +493,7 @@
         if (!isOnline() || !network.roomCode) { badge.hidden = true; badge.textContent = ''; return; }
         const local = state?.players?.[network.localPlayerIndex] || roomLobby.players?.find(player => player.seat === network.localPlayerIndex);
         badge.hidden = false;
-        badge.textContent = `房间 ${network.roomCode} · ${local?.name || `玩家 ${network.localPlayerIndex + 1}`}`;
+        badge.textContent = `在线房间 · ${local?.name || `玩家 ${network.localPlayerIndex + 1}`}`;
       }
 
       function roomSnapshotFor(seat) {
@@ -517,7 +554,8 @@
         const body = $('roomDialogBody');
         if (!body) return;
         if (roomView === 'join') {
-          body.innerHTML = `<div class="room-panel"><p>输入房间码和你的名字。无需注册或登录。</p><div class="room-field"><label for="roomCodeInput">房间码</label><input id="roomCodeInput" maxlength="6" autocomplete="off" autocapitalize="characters" placeholder="例如 ABC123"></div><div class="room-field"><label for="joinNameInput">你的名字</label><input id="joinNameInput" maxlength="16" autocomplete="off" value="玩家"></div>${roomError ? `<div class="room-error">${escapeHtml(roomError)}</div>` : ''}<div class="room-actions"><button class="ghost-btn" data-room-action="back" type="button">返回</button><button class="primary-btn" data-room-action="join" type="button">加入房间</button></div></div>`;
+          const invite = roomInviteValue || (linkedRoomCode() ? window.location.href : '');
+          body.innerHTML = `<div class="room-panel"><p>粘贴房主发来的分享链接，点开链接即可进入同一个房间。无需注册或登录。</p><div class="room-field"><label for="roomLinkInput">房间链接</label><input id="roomLinkInput" maxlength="512" autocomplete="off" inputmode="url" value="${escapeHtml(invite)}" placeholder="例如 https://…/join?room=…"></div><p class="room-note">旧版房间标识仍可兼容，但推荐直接使用分享链接。</p><div class="room-field"><label for="joinNameInput">你的名字</label><input id="joinNameInput" maxlength="16" autocomplete="off" value="${escapeHtml(joinNameValue)}"></div>${roomError ? `<div class="room-error">${escapeHtml(roomError)}</div>` : ''}<div class="room-actions"><button class="ghost-btn" data-room-action="back" type="button">返回</button><button class="primary-btn" data-room-action="join" type="button">打开房间</button></div></div>`;
           return;
         }
         if (roomView === 'creating') {
@@ -525,18 +563,20 @@
           return;
         }
         if (roomView === 'joining') {
-          body.innerHTML = `<div class="room-panel"><p>正在加入房间 <strong>${escapeHtml(network.roomCode)}</strong>…</p>${roomError ? `<div class="room-error">${escapeHtml(roomError)}</div>` : ''}<div class="room-actions"><button class="ghost-btn" data-room-action="leave" type="button">取消</button></div></div>`;
+          body.innerHTML = `<div class="room-panel"><p>正在连接房间…</p>${roomError ? `<div class="room-error">${escapeHtml(roomError)}</div>` : ''}<div class="room-actions"><button class="ghost-btn" data-room-action="leave" type="button">取消</button></div></div>`;
           return;
         }
         if (roomView === 'lobby' || roomView === 'waiting') {
           const players = roomLobby.players || [];
           const connected = players.filter(player => player.connected !== false);
           const list = players.length ? players.map(player => `<li><span>${escapeHtml(player.name)}${player.seat === network.localPlayerIndex ? ' · 你' : ''}</span><small>${player.connected === false ? '已离开' : player.seat === 0 ? '房主' : `玩家 ${player.seat + 1}`}</small></li>`).join('') : '<li><span>等待玩家加入…</span></li>';
-          const hostControls = network.role === 'host' ? `<div class="room-actions"><button class="ghost-btn" data-room-action="leave" type="button">关闭房间</button><button class="ghost-btn" data-room-action="copy" type="button">复制房间码</button><button class="primary-btn" data-room-action="start" type="button" ${connected.length < 2 ? 'disabled' : ''}>开始游戏（${connected.length} 人）</button></div>` : `<div class="room-actions"><button class="ghost-btn" data-room-action="leave" type="button">离开房间</button></div>`;
-          body.innerHTML = `<div class="room-panel"><p>${network.role === 'host' ? '把下面的房间码发给朋友。' : '已加入房间，等待房主开始游戏。'}</p><div class="room-code">${escapeHtml(network.roomCode || '------')}</div><ul class="room-list">${list}</ul>${roomError ? `<div class="room-error">${escapeHtml(roomError)}</div>` : ''}${hostControls}</div>`;
+          const shareLink = roomShareLink(network.roomCode);
+          const inviteField = network.role === 'host' ? `<div class="room-field"><label for="roomShareLink">分享链接</label><div class="room-link-box"><input id="roomShareLink" readonly value="${escapeHtml(shareLink)}"><button class="ghost-btn" data-room-action="copy" type="button">复制</button></div></div>` : '';
+          const hostControls = network.role === 'host' ? `<div class="room-actions"><button class="ghost-btn" data-room-action="leave" type="button">关闭房间</button><button class="primary-btn" data-room-action="start" type="button" ${connected.length < 2 ? 'disabled' : ''}>开始游戏（${connected.length} 人）</button></div>` : `<div class="room-actions"><button class="ghost-btn" data-room-action="leave" type="button">离开房间</button></div>`;
+          body.innerHTML = `<div class="room-panel"><p>${network.role === 'host' ? '复制这条链接发给朋友，点开即可加入。' : '你已加入房间，等待房主开始游戏。'}</p>${inviteField}<ul class="room-list">${list}</ul>${roomError ? `<div class="room-error">${escapeHtml(roomError)}</div>` : ''}${hostControls}</div>`;
           return;
         }
-        body.innerHTML = `<div class="room-panel"><p>你可以创建一个新房间，或加入朋友发来的房间码。无需注册，房间消息由网站服务器安全中转。</p>${roomError ? `<div class="room-error">${escapeHtml(roomError)}</div>` : ''}<div class="room-actions"><button class="ghost-btn" data-room-action="create" type="button">创建房间</button><button class="primary-btn" data-room-action="join-form" type="button">加入房间</button></div></div>`;
+        body.innerHTML = `<div class="room-panel"><p>你可以创建一个新房间，或打开朋友发来的分享链接。无需注册，房间会暂存在这个网站的运行服务中。</p>${roomError ? `<div class="room-error">${escapeHtml(roomError)}</div>` : ''}<div class="room-actions"><button class="ghost-btn" data-room-action="create" type="button">创建房间</button><button class="primary-btn" data-room-action="join-form" type="button">打开分享链接</button></div></div>`;
       }
 
       function roomCallbacks() {
@@ -657,9 +697,10 @@
           return;
         }
         roomError = '';
+        if (!roomInviteValue && linkedRoomCode()) roomInviteValue = window.location.href;
         renderRoomDialog('join');
         $('roomDialog').showModal();
-        setTimeout(() => $('roomCodeInput')?.focus(), 0);
+        setTimeout(() => $('roomLinkInput')?.focus(), 0);
       }
 
       function joinOnlineRoom() {
@@ -668,15 +709,16 @@
           renderRoomDialog('join');
           return;
         }
-        const code = String($('roomCodeInput')?.value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
-        const name = String($('joinNameInput')?.value || '玩家').trim().slice(0, 16) || '玩家';
-        if (code.length !== 6) { roomError = '房间码需要 6 位字母或数字。'; renderRoomDialog('join'); return; }
+        roomInviteValue = String($('roomLinkInput')?.value || roomInviteValue).trim();
+        joinNameValue = String($('joinNameInput')?.value || '玩家').trim().slice(0, 16) || '玩家';
+        const code = roomCodeFromValue(roomInviteValue);
+        if (code.length !== 6) { roomError = '请粘贴有效的房间分享链接（也支持输入 6 位备用标识）。'; renderRoomDialog('join'); return; }
         disconnectRoom();
         network.role = 'client';
         network.roomCode = code;
         network.transport = new window.CellworksRoom(roomCallbacks());
         renderRoomDialog('joining');
-        network.transport.join(code, name);
+        network.transport.join(code, joinNameValue);
       }
 
       function startHostedGame() {
@@ -1156,7 +1198,7 @@
           else if (actionName === 'start') startHostedGame();
           else if (actionName === 'back') { roomError = ''; renderRoomDialog('create'); }
           else if (actionName === 'leave') { disconnectRoom(); if ($('roomDialog').open) $('roomDialog').close(); }
-          else if (actionName === 'copy') { navigator.clipboard?.writeText(network.roomCode).then(() => { roomError = '房间码已复制。'; renderRoomDialog('lobby'); }).catch(() => { roomError = '请手动复制上面的房间码。'; renderRoomDialog('lobby'); }); }
+          else if (actionName === 'copy') { copyRoomShareLink(); }
           return;
         }
         const action = event.target.closest('[data-action]'); if (action) { requestAction(action.dataset.action); return; }
@@ -1182,7 +1224,14 @@
       $('playAgainBtn').addEventListener('click', () => { $('resultsDialog').close(); disconnectRoom(); state = null; $('gameApp').hidden = true; $('setupScreen').hidden = false; });
       $('roomDialog').addEventListener('close', () => { if (!network.started && network.role !== 'local' && (!network.transport?.token || ['creating','joining'].includes(roomView))) disconnectRoom(); });
       renderNameFields();
-      renderRoomDialog('create');
+      const directRoom = linkedRoomCode();
+      if (directRoom) {
+        roomInviteValue = window.location.href;
+        renderRoomDialog('join');
+        setTimeout(() => { if (!$('roomDialog').open) $('roomDialog').showModal(); $('roomLinkInput')?.focus(); }, 0);
+      } else {
+        renderRoomDialog('create');
+      }
       registerWebMcp();
     })();
   </script>
