@@ -1,8 +1,10 @@
-/* Lightweight no-login room transport for the static Cellworks site. */
+/* No-login room transport backed by the site's Vercel API and Redis. */
 (() => {
   'use strict';
 
   const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const POLL_INTERVAL = 900;
+  const API_URL = '/api/room';
 
   function makeRoomCode() {
     let code = '';
@@ -17,15 +19,20 @@
   class CellworksRoom {
     constructor(callbacks = {}) {
       this.callbacks = callbacks;
-      this.peer = null;
       this.role = 'local';
       this.roomCode = '';
       this.maxPlayers = 4;
       this.hostName = '';
-      this.hostConnection = null;
-      this.connectionTimer = null;
+      this.token = '';
+      this.seat = 0;
       this.connections = new Map();
       this.players = [];
+      this.pollTimer = null;
+      this.polling = false;
+      this.closed = false;
+      this.failures = 0;
+      this.outbound = Promise.resolve();
+      this.lobbySignature = '';
     }
 
     emit(name, payload) {
@@ -33,148 +40,210 @@
       if (typeof callback === 'function') callback(payload);
     }
 
-    create(hostName, maxPlayers) {
-      this.close();
-      if (typeof window.Peer !== 'function') {
-        this.emit('error', { message: 'PeerJS 尚未加载，请检查网络后重试。' });
-        return;
+    async request(action, extra = {}, options = {}) {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, ...extra }),
+        cache: 'no-store',
+        keepalive: Boolean(options.keepalive)
+      });
+      let data = null;
+      try { data = await response.json(); } catch (_) {}
+      if (!response.ok || !data?.ok) {
+        const error = new Error(data?.message || `房间服务请求失败（${response.status}）。`);
+        error.code = data?.error || 'ROOM_SERVICE_ERROR';
+        throw error;
       }
+      return data;
+    }
+
+    session() {
+      return { code: this.roomCode, seat: this.seat, token: this.token };
+    }
+
+    async create(hostName, maxPlayers) {
+      this.reset(false);
       this.role = 'host';
-      this.roomCode = makeRoomCode();
       this.maxPlayers = Math.min(4, Math.max(2, Number(maxPlayers) || 2));
       this.hostName = String(hostName || '房主').trim().slice(0, 16) || '房主';
-      this.players = [{ seat: 0, name: this.hostName, connected: true }];
-      try {
-        this.peer = new window.Peer(`cellworks-${this.roomCode.toLowerCase()}`, { debug: 0 });
-      } catch (error) {
-        this.emit('error', { message: error?.message || '无法创建房间。' });
-        return;
-      }
-      this.peer.on('open', id => this.emit('hostReady', { roomCode: this.roomCode, peerId: id }));
-      this.peer.on('connection', connection => this.attachHostConnection(connection));
-      this.peer.on('error', error => this.emit('error', { message: this.peerError(error), error }));
-      this.peer.on('disconnected', () => this.emit('status', { message: '房间连接暂时中断，正在重连…' }));
-    }
-
-    attachHostConnection(connection) {
-      let joinedSeat = null;
-      const onData = message => {
-        if (!message || typeof message !== 'object') return;
-        if (joinedSeat === null && message.type === 'join') {
-          const requestedName = String(message.name || '玩家').trim().slice(0, 16) || '玩家';
-          const seat = this.findOpenSeat();
-          if (seat < 0) {
-            this.safeSend(connection, { type: 'room-full' });
-            connection.close();
-            return;
-          }
-          joinedSeat = seat;
-          this.connections.set(seat, connection);
-          this.players[seat] = { seat, name: requestedName, connected: true };
-          this.safeSend(connection, { type: 'seat', seat, roomCode: this.roomCode, maxPlayers: this.maxPlayers });
-          this.emit('playerJoin', { seat, name: requestedName, connection });
-          this.emitLobby();
+      this.closed = false;
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const code = makeRoomCode();
+        try {
+          const data = await this.request('create', { code, name: this.hostName, maxPlayers: this.maxPlayers });
+          if (this.closed) return;
+          this.roomCode = data.roomCode;
+          this.token = data.token;
+          this.seat = 0;
+          this.applyLobby(data.lobby, true);
+          this.emit('hostReady', { roomCode: this.roomCode });
+          this.startPolling();
+          return;
+        } catch (error) {
+          if (error.code === 'ROOM_EXISTS') continue;
+          this.emit('error', { message: this.friendlyError(error), error });
           return;
         }
-        if (joinedSeat !== null) this.emit('message', { message, seat: joinedSeat, connection });
-      };
-      connection.on('open', () => {});
-      connection.on('data', onData);
-      connection.on('close', () => {
-        if (joinedSeat === null) return;
-        this.connections.delete(joinedSeat);
-        if (this.players[joinedSeat]) this.players[joinedSeat].connected = false;
-        this.emit('playerLeave', { seat: joinedSeat, player: this.players[joinedSeat] });
-        this.emitLobby();
-      });
-      connection.on('error', error => this.emit('error', { message: this.peerError(error), error }));
-    }
-
-    findOpenSeat() {
-      for (let seat = 1; seat < this.maxPlayers; seat += 1) if (!this.players[seat] || !this.players[seat].connected) return seat;
-      return -1;
-    }
-
-    join(roomCode, playerName) {
-      this.close();
-      if (typeof window.Peer !== 'function') {
-        this.emit('error', { message: 'PeerJS 尚未加载，请检查网络后重试。' });
-        return;
       }
+      this.emit('error', { message: '暂时无法生成房间码，请重试。' });
+    }
+
+    async join(roomCode, playerName) {
+      this.reset(false);
       this.role = 'client';
       this.roomCode = normalizeCode(roomCode);
       this.hostName = String(playerName || '玩家').trim().slice(0, 16) || '玩家';
+      this.closed = false;
       if (this.roomCode.length !== 6) {
         this.emit('error', { message: '房间码需要 6 位字母或数字。' });
         return;
       }
       try {
-        this.peer = new window.Peer(undefined, { debug: 0 });
+        const data = await this.request('join', { code: this.roomCode, name: this.hostName });
+        if (this.closed) return;
+        this.token = data.token;
+        this.seat = data.seat;
+        this.maxPlayers = data.lobby?.maxPlayers || 4;
+        this.applyLobby(data.lobby, true);
+        this.emit('message', { message: { type: 'seat', seat: this.seat, roomCode: this.roomCode, maxPlayers: this.maxPlayers } });
+        this.startPolling();
       } catch (error) {
-        this.emit('error', { message: error?.message || '无法加入房间。' });
-        return;
+        this.emit('error', { message: this.friendlyError(error), error });
       }
-      this.peer.on('open', () => {
-        this.hostConnection = this.peer.connect(`cellworks-${this.roomCode.toLowerCase()}`, { reliable: true });
-        this.hostConnection.on('open', () => { if (this.connectionTimer) clearTimeout(this.connectionTimer); this.connectionTimer = null; this.safeSend(this.hostConnection, { type: 'join', name: this.hostName }); });
-        this.hostConnection.on('data', message => this.emit('message', { message }));
-        this.hostConnection.on('close', () => this.emit('disconnected', { message: '房主已离开房间。' }));
-        this.hostConnection.on('error', error => this.emit('error', { message: this.peerError(error), error }));
-        this.connectionTimer = setTimeout(() => { if (!this.hostConnection?.open) this.emit('error', { message: '连接房间超时，请确认房间码或重试。' }); }, 10000);
-      });
-      this.peer.on('error', error => this.emit('error', { message: this.peerError(error), error }));
-      this.peer.on('disconnected', () => this.emit('status', { message: '房间连接暂时中断，正在重连…' }));
     }
 
-    emitLobby() {
-      const lobby = { players: this.players.filter(Boolean).map(player => ({ ...player })), maxPlayers: this.maxPlayers };
-      this.emit('lobby', lobby);
-      if (this.role === 'host') this.broadcast({ type: 'lobby', ...lobby });
+    applyLobby(lobby, force = false) {
+      if (!lobby || !Array.isArray(lobby.players)) return;
+      this.maxPlayers = Number(lobby.maxPlayers) || this.maxPlayers;
+      const nextPlayers = lobby.players.map(player => ({ seat: Number(player.seat), name: String(player.name || '玩家'), connected: player.connected !== false }));
+      const signature = JSON.stringify(nextPlayers.map(player => [player.seat, player.name, player.connected]));
+      this.players = nextPlayers;
+      if (this.role === 'host') {
+        this.connections.clear();
+        nextPlayers.filter(player => player.seat > 0 && player.connected).forEach(player => this.connections.set(player.seat, true));
+      }
+      if (force || signature !== this.lobbySignature) {
+        this.lobbySignature = signature;
+        this.emit('lobby', this.getLobby());
+      }
+    }
+
+    startPolling() {
+      this.stopPolling();
+      const schedule = delay => {
+        if (!this.closed && this.token) this.pollTimer = setTimeout(() => this.poll(schedule), delay);
+      };
+      schedule(0);
+    }
+
+    async poll(schedule) {
+      if (this.polling || this.closed || !this.token) return;
+      this.polling = true;
+      try {
+        const data = await this.request('poll', this.session());
+        this.failures = 0;
+        this.applyLobby(data.lobby);
+        for (const item of data.messages || []) this.handleRelayMessage(item);
+        schedule(POLL_INTERVAL);
+      } catch (error) {
+        this.failures += 1;
+        if (['ROOM_NOT_FOUND', 'INVALID_SESSION'].includes(error.code)) {
+          this.stopPolling();
+          this.emit('disconnected', { message: this.role === 'client' ? '房主已离开，房间已经关闭。' : '房间已失效，请重新创建。' });
+        } else {
+          if (this.failures === 3) this.emit('status', { message: '网络暂时不稳定，正在重新连接房间…' });
+          schedule(Math.min(5000, POLL_INTERVAL * this.failures));
+        }
+      } finally {
+        this.polling = false;
+      }
+    }
+
+    handleRelayMessage(item) {
+      if (!item || typeof item !== 'object') return;
+      if (item.kind === 'join' && this.role === 'host') {
+        const player = { seat: Number(item.seat), name: String(item.name || '玩家'), connected: true };
+        this.emit('playerJoin', { seat: player.seat, name: player.name });
+        return;
+      }
+      if (item.kind === 'leave' && this.role === 'host') {
+        const player = { seat: Number(item.seat), name: String(item.name || '玩家'), connected: false };
+        this.emit('playerLeave', { seat: player.seat, player });
+        return;
+      }
+      if (item.kind === 'app' && item.payload && typeof item.payload === 'object') {
+        this.emit('message', { message: item.payload, seat: Number(item.seat) });
+      }
+    }
+
+    queue(action, extra = {}) {
+      if (this.closed || !this.token) return;
+      this.outbound = this.outbound
+        .then(() => this.request(action, { ...this.session(), ...extra }))
+        .catch(error => {
+          if (['ROOM_NOT_FOUND', 'INVALID_SESSION'].includes(error.code)) this.emit('disconnected', { message: '房间连接已经失效。' });
+          else this.emit('status', { message: this.friendlyError(error) });
+        });
     }
 
     getLobby() {
-      return { players: this.players.filter(Boolean).map(player => ({ ...player })), maxPlayers: this.maxPlayers };
+      return { players: this.players.map(player => ({ ...player })), maxPlayers: this.maxPlayers };
     }
 
     sendToHost(payload) {
-      if (this.role === 'client' && this.hostConnection) this.safeSend(this.hostConnection, payload);
+      if (this.role === 'client') this.queue('send', { payload });
     }
 
     sendToSeat(seat, payload) {
-      const connection = this.connections.get(seat);
-      if (connection) this.safeSend(connection, payload);
+      if (this.role === 'host') this.queue('send', { target: Number(seat), payload });
     }
 
     broadcast(payload) {
-      if (this.role !== 'host') return;
-      this.connections.forEach(connection => this.safeSend(connection, payload));
+      if (this.role === 'host') this.queue('broadcast', { payload });
     }
 
-    safeSend(connection, payload) {
-      try {
-        if (connection && connection.open) connection.send(payload);
-      } catch (_) {}
+    lock() {
+      if (this.role === 'host') this.queue('lock');
     }
 
-    peerError(error) {
-      const type = error?.type || '';
-      if (type === 'peer-unavailable' || type === 'server-error') return '找不到这个房间，请确认房间码。';
-      if (type === 'unavailable-id') return '这个房间码刚刚被占用，请重新创建。';
+    friendlyError(error) {
+      if (error?.code === 'ROOM_NOT_FOUND') return '找不到这个房间，请确认房间码。';
+      if (error?.code === 'ROOM_FULL') return '房间人数已满。';
+      if (error?.code === 'ROOM_STARTED') return '游戏已经开始，无法再加入这个房间。';
       return error?.message || '房间连接失败，请重试。';
     }
 
-    close() {
-      this.connections.forEach(connection => { try { connection.close(); } catch (_) {} });
-      this.connections.clear();
-      if (this.hostConnection) { try { this.hostConnection.close(); } catch (_) {} }
-      this.hostConnection = null;
-      if (this.connectionTimer) clearTimeout(this.connectionTimer);
-      this.connectionTimer = null;
-      if (this.peer) { try { this.peer.destroy(); } catch (_) {} }
-      this.peer = null;
+    stopPolling() {
+      if (this.pollTimer) clearTimeout(this.pollTimer);
+      this.pollTimer = null;
+    }
+
+    reset(notify = true) {
+      this.stopPolling();
+      if (notify && this.token && this.roomCode) {
+        const body = JSON.stringify({ action: 'leave', ...this.session() });
+        let sent = false;
+        try {
+          if (navigator.sendBeacon) sent = navigator.sendBeacon(API_URL, new Blob([body], { type: 'application/json' }));
+        } catch (_) {}
+        if (!sent) fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true }).catch(() => {});
+      }
+      this.closed = true;
       this.role = 'local';
       this.roomCode = '';
+      this.token = '';
+      this.seat = 0;
       this.players = [];
+      this.connections.clear();
+      this.lobbySignature = '';
+      this.failures = 0;
+      this.polling = false;
+      this.outbound = Promise.resolve();
+    }
+
+    close() {
+      this.reset(true);
     }
   }
 

@@ -320,9 +320,7 @@
     <div class="dialog-inner"><div class="dialog-head"><div><p class="setup-kicker">Four rounds complete</p><h2 id="winnerTitle">游戏结束</h2></div></div><div id="results" class="results"></div><button id="playAgainBtn" class="primary-btn" type="button">再玩一局</button></div>
   </dialog>
 
-  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script src="room.js?v=2"></script>
+  <script src="room.js?v=3"></script>
   <script src="card-data.js"></script>
   <script>
     (() => {
@@ -455,8 +453,8 @@
       function updateRoomBadge() {
         const badge = $('roomBadge');
         if (!badge) return;
-        if (!isOnline() || !network.roomCode || !state) { badge.hidden = true; badge.textContent = ''; return; }
-        const local = state.players?.[network.localPlayerIndex];
+        if (!isOnline() || !network.roomCode) { badge.hidden = true; badge.textContent = ''; return; }
+        const local = state?.players?.[network.localPlayerIndex] || roomLobby.players?.find(player => player.seat === network.localPlayerIndex);
         badge.hidden = false;
         badge.textContent = `房间 ${network.roomCode} · ${local?.name || `玩家 ${network.localPlayerIndex + 1}`}`;
       }
@@ -534,11 +532,11 @@
           const players = roomLobby.players || [];
           const connected = players.filter(player => player.connected !== false);
           const list = players.length ? players.map(player => `<li><span>${escapeHtml(player.name)}${player.seat === network.localPlayerIndex ? ' · 你' : ''}</span><small>${player.connected === false ? '已离开' : player.seat === 0 ? '房主' : `玩家 ${player.seat + 1}`}</small></li>`).join('') : '<li><span>等待玩家加入…</span></li>';
-          const hostControls = network.role === 'host' ? `<div class="room-actions"><button class="ghost-btn" data-room-action="copy" type="button">复制房间码</button><button class="primary-btn" data-room-action="start" type="button" ${connected.length < 2 ? 'disabled' : ''}>开始游戏（${connected.length} 人）</button></div>` : `<div class="room-actions"><button class="ghost-btn" data-room-action="leave" type="button">离开房间</button></div>`;
+          const hostControls = network.role === 'host' ? `<div class="room-actions"><button class="ghost-btn" data-room-action="leave" type="button">关闭房间</button><button class="ghost-btn" data-room-action="copy" type="button">复制房间码</button><button class="primary-btn" data-room-action="start" type="button" ${connected.length < 2 ? 'disabled' : ''}>开始游戏（${connected.length} 人）</button></div>` : `<div class="room-actions"><button class="ghost-btn" data-room-action="leave" type="button">离开房间</button></div>`;
           body.innerHTML = `<div class="room-panel"><p>${network.role === 'host' ? '把下面的房间码发给朋友。' : '已加入房间，等待房主开始游戏。'}</p><div class="room-code">${escapeHtml(network.roomCode || '------')}</div><ul class="room-list">${list}</ul>${roomError ? `<div class="room-error">${escapeHtml(roomError)}</div>` : ''}${hostControls}</div>`;
           return;
         }
-        body.innerHTML = `<div class="room-panel"><p>你可以创建一个新房间，或加入朋友发来的房间码。房间不保存账号信息，在 Vercel 的 HTTPS 地址上连接最稳定。</p><div class="room-actions"><button class="ghost-btn" data-room-action="create" type="button">创建房间</button><button class="primary-btn" data-room-action="join-form" type="button">加入房间</button></div></div>`;
+        body.innerHTML = `<div class="room-panel"><p>你可以创建一个新房间，或加入朋友发来的房间码。无需注册，房间消息由网站服务器安全中转。</p><div class="room-actions"><button class="ghost-btn" data-room-action="create" type="button">创建房间</button><button class="primary-btn" data-room-action="join-form" type="button">加入房间</button></div></div>`;
       }
 
       function roomCallbacks() {
@@ -630,6 +628,11 @@
       function requestCancel() { if (!isLocalTurn()) return; if (network.role === 'client') { sendRoomCommand('cancel'); return; } cancelAction(); syncRoomState(); }
 
       function createOnlineRoom() {
+        if (network.role !== 'local' && network.transport?.token && network.roomCode) {
+          renderRoomDialog(network.role === 'host' ? 'lobby' : 'waiting');
+          if (!$('roomDialog').open) $('roomDialog').showModal();
+          return;
+        }
         if (typeof window.CellworksRoom !== 'function') {
           roomError = '多人连接组件未加载，请刷新页面后重试。';
           renderRoomDialog('create');
@@ -648,6 +651,11 @@
       }
 
       function openJoinRoom() {
+        if (network.role !== 'local' && network.transport?.token && network.roomCode) {
+          renderRoomDialog(network.role === 'host' ? 'lobby' : 'waiting');
+          if (!$('roomDialog').open) $('roomDialog').showModal();
+          return;
+        }
         roomError = '';
         renderRoomDialog('join');
         $('roomDialog').showModal();
@@ -676,6 +684,7 @@
         const joined = network.transport.getLobby().players.filter(player => player.connected !== false).sort((a,b) => a.seat - b.seat);
         if (joined.length < 2) { roomError = '至少需要 2 位玩家才能开始。'; renderRoomDialog('lobby'); return; }
         network.seatToPlayerIndex = new Map(joined.map((player,index) => [player.seat, index]));
+        network.transport.lock();
         startGame(joined.map(player => player.name));
         network.started = true;
         if ($('roomDialog').open) $('roomDialog').close();
@@ -1171,7 +1180,7 @@
       $('rulesBtn').addEventListener('click', () => $('rulesDialog').showModal());
       $('resetBtn').addEventListener('click', () => { if (window.confirm('放弃当前游戏并重新设置玩家？')) { disconnectRoom(); state = null; $('gameApp').hidden = true; $('setupScreen').hidden = false; } });
       $('playAgainBtn').addEventListener('click', () => { $('resultsDialog').close(); disconnectRoom(); state = null; $('gameApp').hidden = true; $('setupScreen').hidden = false; });
-      $('roomDialog').addEventListener('close', () => { if (!network.started && network.role !== 'local') disconnectRoom(); });
+      $('roomDialog').addEventListener('close', () => { if (!network.started && network.role !== 'local' && (!network.transport?.token || ['creating','joining'].includes(roomView))) disconnectRoom(); });
       renderNameFields();
       renderRoomDialog('create');
       registerWebMcp();
